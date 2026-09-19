@@ -53,6 +53,12 @@ private:
     // Bytes read from the console per poll(), so one call stays short.
     static constexpr size_t kMaxConsoleBytesPerPoll = 64;
 
+    // RX line probe: settle time after switching pulls, then samples spread
+    // over about one byte time at 19200 baud (about 1 ms in total).
+    static constexpr uint32_t kLineSettleUs = 200;
+    static constexpr int kLineSamples = 8;
+    static constexpr uint32_t kLineSampleGapUs = 100;
+
     void readConsole(uint32_t nowMs);
     void handleCommandByte(uint8_t byte, uint32_t nowMs);
     void handlePassthroughByte(uint8_t byte, uint32_t nowMs);
@@ -66,6 +72,8 @@ private:
     void enterPassthrough();
     void exitPassthrough(uint32_t nowMs);
     void forwardToModem(uint8_t byte);
+
+    void probeRxLine();
 
     void printBanner();
     void printHelp();
