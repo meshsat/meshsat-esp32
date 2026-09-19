@@ -1,0 +1,14 @@
+# PlatformIO build output and downloaded libraries
+.pio/
+
+# Editor state
+.vscode/
+.idea/
+*.swp
+
+# Local secrets
+.env
+
+# Claude Code files are local-only, never committed
+CLAUDE.md
+.claude/
