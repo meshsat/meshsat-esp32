@@ -11,6 +11,7 @@
 [![Firmware](https://img.shields.io/badge/firmware-meshsat--firmware-F25C05)](https://github.com/meshsat/meshsat-firmware)
 ![ESP32-S3 + RockBLOCK 9603](https://img.shields.io/badge/hardware-ESP32--S3%20%2B%20RockBLOCK%209603-555)
 
+[Docs](https://docs.meshsat.net/node/) ·
 [Node firmware](https://github.com/meshsat/meshsat-firmware) ·
 [Hardware](#hardware) ·
 [What is proven](#what-is-proven-and-what-is-not) ·
@@ -71,7 +72,7 @@ The RockBLOCK needs an active Ground Control line rental and message credits. Ev
 | 8 power in | a 5 V source rated ≥ 500 mA | pin 9, DCDC5 (switched by the firmware) |
 | 10 GND | GND, shared with the 5 V source | pin 8, GND |
 
-On v0, use the XIAO's own D6/D7 pads. The Wio-SX1262's D5/D6/D7 pads are not connected on the ESP32-S3 kit. The full v0 wiring, power notes and troubleshooting are in the [bench manual](docs/BENCH.md), and every hardware fact with its source is in [docs/REFERENCES.md](docs/REFERENCES.md).
+On v0, use the XIAO's own D6/D7 pads. The Wio-SX1262's D5/D6/D7 pads are not connected on the ESP32-S3 kit. A step-by-step build guide for both versions is on [docs.meshsat.net](https://docs.meshsat.net/node/build). The full v0 wiring, power notes and troubleshooting are in the [bench manual](docs/BENCH.md), and every hardware fact with its source is in [docs/REFERENCES.md](docs/REFERENCES.md).
 
 ## What is proven, and what is not
 
@@ -81,6 +82,7 @@ On v0, use the XIAO's own D6/D7 pads. The Wio-SX1262's D5/D6/D7 pads are not con
 | Iridium modem over the same Bluetooth link (v0) | Verified on the bench, 19 Sep 2026: AT commands, and a binary loopback of up to 270 bytes |
 | A satellite message out, Hub to phone to node to Iridium | One message delivered, 19 Sep 2026 |
 | A satellite message in, fetched by the app after a ring alert | One message received, 19 Sep 2026 |
+| The app reconnecting after its own restart and taking the modem back | Verified 19 Sep 2026. Recovery from a drop mid-session has **not been exercised yet** |
 | v1 on the T-Beam Supreme | Firmware builds. **Not run on hardware yet** |
 | Routing on the node with no phone connected | **Not built yet** |
 | Battery life | **Not measured** |
