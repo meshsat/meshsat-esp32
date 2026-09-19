@@ -1,5 +1,8 @@
 #include "diag/ModemDebugApp.h"
 
+#include <Arduino.h>
+#include <driver/gpio.h>
+
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
@@ -196,6 +199,12 @@ void ModemDebugApp::runCommandLine(uint32_t nowMs) {
         enterPassthrough();
     } else if (equalsIgnoreCase(command, "status")) {
         printStatus(nowMs);
+    } else if (equalsIgnoreCase(command, "line")) {
+        if (testInFlight_) {
+            Log::warn("an AT test is running, try again in a moment");
+        } else {
+            probeRxLine();
+        }
     } else {
         Log::warn("unknown command '%s', type help", command);
     }
@@ -339,6 +348,36 @@ void ModemDebugApp::forwardToModem(uint8_t byte) {
     }
 }
 
+void ModemDebugApp::probeRxLine() {
+    // The RockBLOCK drives its RXD output (pin 1) high while idle. Swap the
+    // RX pin's pull-up for a pull-down for a moment: if the pin still reads
+    // high, something powered is driving the wire; if it falls low, nothing
+    // is connected there. Nothing is driven, so this is safe with any wiring.
+    const gpio_num_t rx = static_cast<gpio_num_t>(board::kModemRxPin);
+    const int withPullUp = gpio_get_level(rx);
+
+    gpio_pullup_dis(rx);
+    gpio_pulldown_en(rx);
+    delayMicroseconds(kLineSettleUs);
+    int highCount = 0;
+    for (int i = 0; i < kLineSamples; ++i) {
+        highCount += gpio_get_level(rx);
+        delayMicroseconds(kLineSampleGapUs);
+    }
+    gpio_pulldown_dis(rx);
+    gpio_pullup_en(rx);
+
+    Log::info("RX line GPIO%d (D7): reads %d with pull-up, high in %d of %d samples with pull-down", board::kModemRxPin,
+              withPullUp, highCount, kLineSamples);
+    if (highCount == kLineSamples) {
+        Log::info("  driven high: a powered output is on this wire (expected: RockBLOCK pin 1 RXD)");
+    } else if (highCount == 0) {
+        Log::warn("  floating or held low: nothing drives this wire; check the D7 contact and RockBLOCK pin 1");
+    } else {
+        Log::warn("  mixed readings: data or noise on the line, run line again");
+    }
+}
+
 void ModemDebugApp::printBanner() {
     Log::info("%s %s, board %s, milestone 1: RockBLOCK 9603 AT -> OK", core::kFirmwareName, core::kFirmwareVersion,
               board::kBoardName);
@@ -359,6 +398,7 @@ void ModemDebugApp::printHelp() {
               static_cast<unsigned long>(kMaxAutoIntervalMs / 1000));
     Log::info("  pass     pass-through to the RockBLOCK; Enter sends CR, ~. at line start leaves");
     Log::info("  status   counters, last result and settings");
+    Log::info("  line     check whether anything drives the RX wire (GPIO%d, D7)", board::kModemRxPin);
     Log::info("  help     this list");
 }
 

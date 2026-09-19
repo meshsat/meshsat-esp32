@@ -101,6 +101,7 @@ Output starts immediately. Whatever is printed before the monitor opens is dropp
 | `auto N` / `auto off` | repeat the test every N seconds (5 to 3600), or stop repeating |
 | `pass` | pass-through: typed bytes go to the RockBLOCK, Enter sends one CR, `~.` at the start of a line returns to the console |
 | `status` | counters, last result, pins |
+| `line` | check whether anything drives the RX wire (D7): the RockBLOCK holds pin 1 high when powered |
 | `help` | command list |
 
 A passing test looks like this (timings will differ; with the modem's echo on, the reply starts with your `AT`):
