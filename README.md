@@ -102,6 +102,7 @@ Output starts immediately. Whatever is printed before the monitor opens is dropp
 | `pass` | pass-through: typed bytes go to the RockBLOCK, Enter sends one CR, `~.` at the start of a line returns to the console |
 | `status` | counters, last result, pins |
 | `line` | check whether anything drives the RX wire (D7): the RockBLOCK holds pin 1 high when powered |
+| `selftest` | print the UART pin routing and read back our own TX pin, proving the firmware transmits on GPIO43 (no modem needed) |
 | `help` | command list |
 
 A passing test looks like this (timings will differ; with the modem's echo on, the reply starts with your `AT`):
