@@ -14,7 +14,12 @@ SX1262 ← SPI ────┤                 │   later (pins reserved, never
 
 ## Status: milestone 1
 
-ESP32-S3 UART → RockBLOCK 9603 → `AT` → `OK`, plus a USB console with a manual test trigger and a pass-through to the modem. It builds, and the host unit tests pass. **It has not yet been run against a RockBLOCK.** The hardware checks are listed [below](#hardware-validation-still-to-do).
+ESP32-S3 UART → RockBLOCK 9603 → `AT` → `OK`, plus a USB console with a manual test trigger and a pass-through to the modem. The same console is also available over BLE.
+
+**Verified on hardware on 19 Sep 2026** (XIAO ESP32-S3 on a power bank, console over BLE):
+- `AT` → `"AT\r\r\nOK\r\n"` in 9 ms, including the automatic test right after a XIAO reset.
+- All read-only AT commands answered in pass-through: `AT+CGMR` shows 9603N rev DE with firmware TA21004, `AT&V` shows flow control off in the stored profile, and `AT+IPR?` shows 19200.
+- Open checks are listed [below](#hardware-validation).
 
 Sources, checked pin numbers, and the places where official documents disagree: [docs/REFERENCES.md](docs/REFERENCES.md).
 
@@ -44,6 +49,8 @@ RockBLOCK 9603 connector to XIAO ESP32-S3:
 | 7 | OnOff | input | **not connected**. Floating means ON. See below. | |
 | 9 | Li-Ion | power in | **not connected**. Never use it together with pin 8. | |
 
+> **Use the XIAO's own D6 and D7 pads, on the board with the USB-C connector.** The Wio-SX1262 board also has pads labelled D5, D6 and D7, but on this B2B (ESP32-S3) version they are **not connected to anything**: Seeed's schematic marks J1 pins 6–7 and J2 pin 7 as no-connect. They only serve the nRF52840 version of the kit. Wires on those pads give exactly the symptoms seen on 19 Sep 2026: the modem never replies and `line` reports D7 floating.
+
 RockBLOCK pin 1 goes to the XIAO's **RX**, and pin 6 to the XIAO's **TX**. The RockBLOCK names its pins from the modem's side, so "RXD" is the modem's output. Ground Control's FAQ calls a swapped pair the most common wiring mistake.
 
 Logic levels need no level shifter. The RockBLOCK's UART pins are 3.3 V and 5 V tolerant, and the XIAO drives 3.3 V.
@@ -68,8 +75,10 @@ Do not feed the power bank's 5 V into the XIAO's **5V pin** while the XIAO is pl
 
 **Target setup (power bank only):**
 
-- Power bank → XIAO USB-C.
+- Power bank **USB-C** port → XIAO USB-C. The XIAO's USB-C has a 5.1 kΩ CC resistor, which tells a USB-C power bank that a device is attached, so the port stays on.
 - Power bank → RockBLOCK pin 8 through a second port or a splitter, with common ground.
+
+A power bank's **USB-A** port can switch itself off because the XIAO draws so little. On 19 Sep 2026 the bench power bank (Anker Prime 20,000 mAh) did exactly that, and the XIAO stopped advertising over BLE. Anker's [trickle-charging mode](https://service.anker.com/article-description/What-is-Trickle-Charging-Mode) (double-press the power button) keeps USB-A on, but it limits the output to under 0.5 A. That is fine for the XIAO alone and too little for XIAO plus RockBLOCK.
 
 Taking the RockBLOCK's 5 V from the XIAO's 5V pin (VBUS pass-through) is possible, but it runs up to about 500 mA through the XIAO's USB-C connector and traces, and Seeed publishes no current rating for that path. A splitter avoids the question.
 
@@ -140,20 +149,22 @@ This is a bench console, not the node's product BLE interface. The link is not e
 
 ### If the modem does not answer
 
-1. Check RX/TX: RockBLOCK pin 1 → D7, pin 6 → D6. Ground Control's FAQ advises simply trying the other way round if in doubt.
-2. Check that ground is shared between the RockBLOCK, the XIAO and the 5 V source.
-3. Wait 10 s after powering the RockBLOCK.
-4. Power-cycle the RockBLOCK with **at least 2 s off** (Iridium 9603 Developer's Guide 3.2.1: a unit reapplied too fast can hang until the next proper power cycle).
-5. In pass-through, send `AT&K0`. Ground Control's pages disagree on whether flow control ships enabled, and in 3-wire mode it must be off.
+1. Run `line`. "driven high" means the RockBLOCK's pin 1 output reaches D7. "floating" means it does not: check that the wires sit on the **XIAO's** D6/D7 pads, not on the Wio-SX1262's (see [Wiring](#wiring)), and that nothing is connected to pin 7 (OnOff).
+2. Run `selftest`. It proves the firmware transmits on D6 and listens on D7, with no modem needed.
+3. Check RX/TX: RockBLOCK pin 1 → D7, pin 6 → D6. Ground Control's FAQ advises simply trying the other way round if in doubt.
+4. Check that ground is shared between the RockBLOCK, the XIAO and the 5 V source.
+5. Wait 10 s after powering the RockBLOCK.
+6. Power-cycle the RockBLOCK with **at least 2 s off** (Iridium 9603 Developer's Guide 3.2.1: a unit reapplied too fast can hang until the next proper power cycle).
+7. In pass-through, send `AT&K0`. Ground Control's pages disagree on whether flow control ships enabled, and in 3-wire mode it must be off.
 
-## Hardware validation still to do
+## Hardware validation
 
-- [ ] `AT` → `OK` over GPIO43/44 with the wiring above (milestone 1 exit).
-- [ ] Pass-through: `AT+CGMR` and `AT+CSQ` answered.
-- [ ] RockBLOCK stays up during boot. The ESP32-S3 ROM prints its boot text on GPIO43 at every reset (it cannot be switched off on the XIAO); check that the first test after a XIAO reset still passes.
-- [ ] Voltage on RockBLOCK pin 1 when idle is ≥ 3.0 V (ESP32-S3 input threshold 2.48 V).
-- [ ] The chosen power bank keeps its output on at the node's idle current.
-- [ ] Nothing changes on the SX1262 side (the firmware never touches its pins).
+- [x] `AT` → `OK` over GPIO43/44 with the wiring above (milestone 1 exit). Passed 19 Sep 2026 in 9 ms.
+- [x] Pass-through: `AT+CGMR`, `AT+CSQ` and the other read-only commands all answered.
+- [x] RockBLOCK stays usable through a XIAO reset. The ESP32-S3 ROM prints its boot text on GPIO43 at every reset, and the automatic test right after a reset still passed.
+- [ ] Voltage on RockBLOCK pin 1 when idle is ≥ 3.0 V (ESP32-S3 input threshold 2.48 V). Not measured yet; `line` shows it reads high.
+- [x] Power bank keeps its output on at the node's idle current: yes on its USB-C port. The USB-A port switches off (see [Power](#power)).
+- [ ] Nothing changes on the SX1262 side (the firmware never touches its pins). To check at the LoRa milestone.
 
 ## Layout
 

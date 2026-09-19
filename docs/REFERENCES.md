@@ -72,6 +72,8 @@ The Wio board's 30-pin B2B connector (its J3) mates with the XIAO's J3 (DF40C-30
 
 After reset, GPIO38 to GPIO42 are inputs with no pull (datasheet pin table). This firmware never configures them.
 
+**The Wio-SX1262 board's own D5, D6 and D7 pads are no-connect on this kit.** The same Wio PCB carries the B2B connector J3 (ESP32-S3 kit) and two 1x7 headers, J1 and J2 (nRF52840 kit). The schematic marks J1 pins 6–7 (silkscreen D5, D6) and J2 pin 7 (D7) with X: they connect to nothing on the Wio. On the ESP32-S3 kit, anything meant for the XIAO's D5/D6/D7 must go on the XIAO's own castellated pads. A RockBLOCK wired to the Wio's D5/D6 on 19 Sep 2026 stayed silent until it was moved.
+
 ### RockBLOCK 9603 UART
 
 | RockBLOCK pin | Name | Direction | XIAO pin | GPIO |
@@ -106,6 +108,10 @@ The firmware drives them with **UART1**, routed through the GPIO matrix. See "UA
 - The Bridge sends `AT&K0` first on every connect, and so does IridiumSBD.
 
 Milestone 1 sends exactly `AT\r`, as specified. If that gets no reply, the failure message suggests `AT&K0` in pass-through. Milestone 2's init sequence starts with `AT&K0`.
+
+The bench unit (IMEI 300434067943980, 9603N rev DE, firmware TA21004), read on 19 Sep 2026:
+- `AT&V`: active profile and stored profile 0 are `E1 Q0 V1 &D0 &K0`; stored profile 1 is `E1 Q0 V1 &D2 &K3`. This unit powers up with flow control off.
+- `AT+IPR?`: 6 (19200).
 
 **Logic levels.**
 
