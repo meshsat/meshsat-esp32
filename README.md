@@ -1,197 +1,111 @@
-# meshsat-esp32
+<div align="center">
 
-Firmware for a small MeshSat node: a Seeed Studio XIAO ESP32-S3 with a Wio-SX1262 LoRa board and a RockBLOCK 9603 Iridium SBD modem. Later milestones add BLE (to the Android app), Wi-Fi and Meshtastic-compatible LoRa. This one does not.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/mark-dark.png">
+  <img src="docs/images/mark-light.png" alt="MeshSat" width="190">
+</picture>
 
+### A pocket-sized MeshSat node: LoRa mesh and Iridium satellite in one small case.
+
+[![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
+[![Firmware](https://img.shields.io/badge/firmware-meshsat--firmware-F25C05)](https://github.com/meshsat/meshsat-firmware)
+![ESP32-S3 + RockBLOCK 9603](https://img.shields.io/badge/hardware-ESP32--S3%20%2B%20RockBLOCK%209603-555)
+
+[Node firmware](https://github.com/meshsat/meshsat-firmware) ·
+[Hardware](#hardware) ·
+[What is proven](#what-is-proven-and-what-is-not) ·
+[Bench manual](docs/BENCH.md) ·
+[meshsat.net](https://meshsat.net)
+
+<img src="docs/images/node-v0-open.jpg" alt="An open Peli case on a garden ledge, holding a RockBLOCK 9603, an ESP32-S3 LoRa board and a power bank" width="720">
+
+<sub>The v0 node on its bench: a garden ledge with a limited view of the sky.</sub>
+
+</div>
+
+This is the small MeshSat node. It puts a Meshtastic LoRa radio and a RockBLOCK 9603 Iridium modem in one pocket-size case. A phone connects to it over one Bluetooth link and gets both: the mesh through the normal Meshtastic service, and the satellite modem through a second MeshSat service next to it.
+
+The [MeshSat Android](https://github.com/meshsat/meshsat-android) app does the routing, the queueing and the credit accounting, so the node itself stays simple. While the app is connected, the modem is the app's. Routing on the node itself, for when no phone is around, comes next.
+
+> **Status: pre-release.** This is a prototype under active development, not a finished product. It has never been deployed to a real user and has never been used in an actual emergency. See [What is proven, and what is not](#what-is-proven-and-what-is-not) before you rely on it for anything.
+
+## How it fits together
+
+```mermaid
+flowchart LR
+    mesh["Meshtastic mesh<br/>LoRa 868 MHz"] <--> fw
+    subgraph node["MeshSat node"]
+        fw["ESP32-S3<br/>meshsat-firmware"] <-->|UART| rb["RockBLOCK 9603"]
+    end
+    phone["MeshSat Android"] <-->|"Bluetooth LE<br/>Meshtastic + Iridium services"| fw
+    rb <-->|"Iridium SBD"| sat(("Iridium"))
+    sat <--> gc["Ground Control"] <--> hub["MeshSat Hub"]
+    phone <-.->|"internet, when there is any"| hub
 ```
-                    XIAO ESP32-S3
-                 ┌─────────────────┐
-Android ← BLE ←──┤                 │   later
-Internet ← WiFi ─┤                 │   later
-SX1262 ← SPI ────┤                 │   later (pins reserved, never touched)
-9603 ← UART ─────┤                 │   milestone 1: AT -> OK
-                 └─────────────────┘
-```
 
-## Status: milestone 1
-
-ESP32-S3 UART → RockBLOCK 9603 → `AT` → `OK`, plus a USB console with a manual test trigger and a pass-through to the modem. The same console is also available over BLE.
-
-**Verified on hardware on 19 Sep 2026** (XIAO ESP32-S3 on a power bank, console over BLE):
-- `AT` → `"AT\r\r\nOK\r\n"` in 9 ms, including the automatic test right after a XIAO reset.
-- All read-only AT commands answered in pass-through: `AT+CGMR` shows 9603N rev DE with firmware TA21004, `AT&V` shows flow control off in the stored profile, and `AT+IPR?` shows 19200.
-- Open checks are listed [below](#hardware-validation).
-
-Sources, checked pin numbers, and the places where official documents disagree: [docs/REFERENCES.md](docs/REFERENCES.md).
+The node runs [meshsat-firmware](https://github.com/meshsat/meshsat-firmware), a fork of the Meshtastic firmware with one addition: a binary-safe serial pipe from Bluetooth to the RockBLOCK. The app speaks the 9603's AT commands through that pipe, exactly as it would over a cable. The pipe's contract (UUIDs, owner status, pairing) is in [docs/IRIDIUM-BLE.md](docs/IRIDIUM-BLE.md).
 
 ## Hardware
 
-| Part | Notes |
+Two versions. v0 proved the idea on the bench; v1 is the one meant to become a product.
+
+| | v0 (bench) | v1 (prototype) |
+|---|---|---|
+| Board | Seeed Studio XIAO ESP32-S3 + Wio-SX1262 | LILYGO T-Beam Supreme (ESP32-S3, SX1262, u-blox M10S GPS) |
+| Satellite | RockBLOCK 9603 | RockBLOCK 9603 |
+| Power | USB power bank | one 18650 cell in the T-Beam, charged over USB-C; the modem runs from the T-Beam's power chip |
+| Case | Peli 1050 | Peli 1020, IP68 USB-C and a panel power button |
+| Firmware env | `meshsat-xiao-s3-rockblock` | `meshsat-tbeam-s3-rockblock` |
+| State | Tested on the bench, September 2026 | Parts arriving, not built yet |
+
+<img src="docs/images/node-v0-garden.jpg" alt="The closed Peli case between two planters in a garden" width="560">
+
+The RockBLOCK needs an active Ground Control line rental and message credits. Every satellite session is billed, even one that only checks for mail.
+
+**RockBLOCK wiring, four wires either way.** Pin 7 (OnOff) and pin 9 (Li-Ion) stay unconnected.
+
+| RockBLOCK pin | v0: XIAO ESP32-S3 | v1: T-Beam Supreme header PM1 |
+|:---:|---|---|
+| 1 RXD (modem output) | D7, GPIO44 | pin 12, GPIO44 |
+| 6 TXD (modem input) | D6, GPIO43 | pin 13, GPIO43 |
+| 8 power in | a 5 V source rated ≥ 500 mA | pin 9, DCDC5 (switched by the firmware) |
+| 10 GND | GND, shared with the 5 V source | pin 8, GND |
+
+On v0, use the XIAO's own D6/D7 pads. The Wio-SX1262's D5/D6/D7 pads are not connected on the ESP32-S3 kit. The full v0 wiring, power notes and troubleshooting are in the [bench manual](docs/BENCH.md), and every hardware fact with its source is in [docs/REFERENCES.md](docs/REFERENCES.md).
+
+## What is proven, and what is not
+
+| | State |
 |---|---|
-| Seeed Studio XIAO ESP32-S3 | ESP32-S3R8, 8 MB flash, 8 MB PSRAM |
-| Wio-SX1262 for XIAO ESP32-S3 | connected through the XIAO's B2B connector (the ESP32-S3 version, not the header-pin nRF52840 version); EU 868 MHz |
-| RockBLOCK 9603 | 10-pin Molex PicoBlade 1.25 mm, mating housing Molex 51021-1000 |
-| 5 V supply for the RockBLOCK | must deliver at least 500 mA, see [Power](#power) |
+| Meshtastic to the MeshSat Android app over Bluetooth (v0) | Verified on the bench, 19 Sep 2026: bonded with a fixed PIN, full config sync |
+| Iridium modem over the same Bluetooth link (v0) | Verified on the bench, 19 Sep 2026: AT commands, and a binary loopback of up to 270 bytes |
+| A satellite message out, Hub to phone to node to Iridium | One message delivered, 19 Sep 2026 |
+| A satellite message in, fetched by the app after a ring alert | One message received, 19 Sep 2026 |
+| v1 on the T-Beam Supreme | Firmware builds. **Not run on hardware yet** |
+| Routing on the node with no phone connected | **Not built yet** |
+| Battery life | **Not measured** |
+| Range, weather, long-term reliability | **Not tested** |
+| Deployment to a real end user | **Never** |
+| Use in an actual emergency | **Never** |
 
-## Wiring
+The satellite results come from a garden with a limited view of the sky. There the signal read zero bars minutes before and after a session that got through, so the app never waits for bars before it sends.
 
-RockBLOCK 9603 connector to XIAO ESP32-S3:
+## What is in this repository
 
-| RockBLOCK pin | Name | Direction | Connect to | GPIO |
-|:---:|---|---|---|:---:|
-| 1 | RXD | **output from** the RockBLOCK | XIAO **D7** (RX) | 44 |
-| 6 | TXD | **input to** the RockBLOCK | XIAO **D6** (TX) | 43 |
-| 10 | GND | ground | XIAO **GND** *and* the 5 V supply's ground | |
-| 8 | 5V In | power in | 5 V supply, ≥ 500 mA (see [Power](#power)) | |
-| 2 | CTS | output | not connected (flow control is off) | |
-| 3 | RTS | input | not connected | |
-| 4 | NetAv | output | not connected yet | |
-| 5 | RI | output, active low | not connected yet | |
-| 7 | OnOff | input | **not connected**. Floating means ON. See below. | |
-| 9 | Li-Ion | power in | **not connected**. Never use it together with pin 8. | |
+- **Bench firmware** for v0 in `src/`, with host tests in `tests/` and a Bluetooth console client in `tools/`. It tests the modem link and passes AT commands through over USB or Bluetooth. How to build and use it: [docs/BENCH.md](docs/BENCH.md).
+- **The Iridium Bluetooth service contract** in [docs/IRIDIUM-BLE.md](docs/IRIDIUM-BLE.md): what a client writes, reads and subscribes to.
+- **Hardware references** in [docs/REFERENCES.md](docs/REFERENCES.md): pin maps checked against the schematics, the 9603 facts, and the places where official documents disagree.
 
-> **Use the XIAO's own D6 and D7 pads, on the board with the USB-C connector.** The Wio-SX1262 board also has pads labelled D5, D6 and D7, but on this B2B (ESP32-S3) version they are **not connected to anything**: Seeed's schematic marks J1 pins 6–7 and J2 pin 7 as no-connect. They only serve the nRF52840 version of the kit. Wires on those pads give exactly the symptoms seen on 19 Sep 2026: the modem never replies and `line` reports D7 floating.
+The node's product firmware lives in [meshsat-firmware](https://github.com/meshsat/meshsat-firmware).
 
-RockBLOCK pin 1 goes to the XIAO's **RX**, and pin 6 to the XIAO's **TX**. The RockBLOCK names its pins from the modem's side, so "RXD" is the modem's output. Ground Control's FAQ calls a swapped pair the most common wiring mistake.
+## Related projects
 
-Logic levels need no level shifter. The RockBLOCK's UART pins are 3.3 V and 5 V tolerant, and the XIAO drives 3.3 V.
+- **[MeshSat](https://github.com/meshsat/meshsat)**, the Bridge: a Raspberry Pi gateway that bonds Meshtastic, Iridium, cellular SMS, APRS, ZigBee and TCP
+- **[MeshSat Android](https://github.com/meshsat/meshsat-android)**, the phone gateway this node pairs with
+- **[meshsat-firmware](https://github.com/meshsat/meshsat-firmware)**, the node's firmware
+- **[MeshSat Field Kit](https://github.com/meshsat/meshsat-fieldkit)**, the hardware for the larger field kits
+- **[MeshSat Hub](https://hub.meshsat.net)**, multi-tenant fleet management
 
-**Do not connect OnOff (pin 7) to a XIAO GPIO.** The RockBLOCK 9603 Rev F reads OnOff against its supply voltage: ON needs at least supply − 0.5 V (about 4.5 V on 5 V) or a floating pin, and more than 1 µA of leakage can switch the modem off. A 3.3 V pin can do neither. Switching the modem from firmware later needs an open-drain (N-MOSFET) stage, the same one the Bridge kits need.
+## License
 
-The SX1262 uses GPIO7, 8, 9, 38, 39, 40, 41 and 42. The Wio board's button and LED use GPIO21 and 48. None of these are D6/D7. The firmware does not configure or drive any of the radio pins.
-
-## Power
-
-Never power the RockBLOCK from the XIAO's 3V3 pin.
-
-The RockBLOCK takes 3.0 to 5.4 V on pin 8 and needs a source that can deliver **at least 500 mA** (Ground Control; a weaker source browns out during transmit). Its supercapacitor charges when power is first applied, and the modem answers about **10 s** later.
-
-**Bench setup for milestone 1 (XIAO on a computer for the console):**
-
-- XIAO USB-C → computer (console and flashing).
-- RockBLOCK pin 8 → a separate 5 V source rated ≥ 500 mA, for example the power bank through a USB breakout.
-- RockBLOCK pin 10 → that source's ground **and** a XIAO GND pin (common ground).
-
-Do not feed the power bank's 5 V into the XIAO's **5V pin** while the XIAO is plugged into the computer. That pin is the USB VBUS line with no diode (XIAO schematic v1.4), so it would back-feed the computer's USB port. A computer port (500 mA on USB 2.0) is also too weak to power the RockBLOCK through the XIAO.
-
-**Target setup (power bank only):**
-
-- Power bank **USB-C** port → XIAO USB-C. The XIAO's USB-C has a 5.1 kΩ CC resistor, which tells a USB-C power bank that a device is attached, so the port stays on.
-- Power bank → RockBLOCK pin 8 through a second port or a splitter, with common ground.
-
-A power bank's **USB-A** port can switch itself off because the XIAO draws so little. On 19 Sep 2026 the bench power bank (Anker Prime 20,000 mAh) did exactly that, and the XIAO stopped advertising over BLE. Anker's [trickle-charging mode](https://service.anker.com/article-description/What-is-Trickle-Charging-Mode) (double-press the power button) keeps USB-A on, but it limits the output to under 0.5 A. That is fine for the XIAO alone and too little for XIAO plus RockBLOCK.
-
-Taking the RockBLOCK's 5 V from the XIAO's 5V pin (VBUS pass-through) is possible, but it runs up to about 500 mA through the XIAO's USB-C connector and traces, and Seeed publishes no current rating for that path. A splitter avoids the question.
-
-## Building
-
-PlatformIO Core 6.x is required (`pip install platformio`). The first build downloads the pioarduino platform `55.03.311` (Arduino core 3.3.11 on ESP-IDF 5.5), the same release upstream Meshtastic uses.
-
-```sh
-# firmware
-pio run
-
-# host unit tests for the AT parser and the modem state machine (needs a host g++)
-pio test -e native
-
-# flash over USB-C, then open the console
-pio run -t upload
-pio device monitor
-```
-
-If the XIAO does not show up for flashing, hold **BOOT** while plugging in USB-C to start the ROM bootloader, then upload again.
-
-## Using the console
-
-Output starts immediately. Whatever is printed before the monitor opens is dropped; type `status` to see it again. About 12 s after boot the firmware sends the first test, then repeats it every 30 s until you type `auto off`.
-
-| Command | Does |
-|---|---|
-| `test` | send exactly `AT\r` now and report the raw reply and PASS / FAIL |
-| `auto N` / `auto off` | repeat the test every N seconds (5 to 3600), or stop repeating |
-| `pass` | pass-through: typed bytes go to the RockBLOCK, Enter sends one CR, `~.` at the start of a line returns to the console |
-| `status` | counters, last result, pins |
-| `line` | check whether anything drives the RX wire (D7): the RockBLOCK holds pin 1 high when powered |
-| `selftest` | print the UART pin routing and read back our own TX pin, proving the firmware transmits on GPIO43 (no modem needed) |
-| `help` | command list |
-
-A passing test looks like this (timings will differ; with the modem's echo on, the reply starts with your `AT`):
-
-```
-[     12.001] I AT test #1 (boot): sent "AT\r" on UART1 at 19200 8N1, waiting up to 3000 ms
-[     12.020] I AT test #1 raw reply (9 bytes): "AT\r\r\nOK\r\n"
-[     12.020] I AT test #1: PASS, OK received after 19 ms
-```
-
-On failure the log gives the likely causes in order: wiring, power, the 2-second power cycle, flow control. Any line ending you type (CR, LF or CR LF) reaches the modem as a single CR, because the 9603 accepts only CR. Commands such as `AT&K0` or `AT+CSQ` can be tried in pass-through.
-
-### Over Bluetooth (BLE)
-
-The same console is available over BLE, so the XIAO can run from a power bank with no USB cable. It uses the Nordic UART Service and advertises as `meshsat-esp32-XXXX`, where XXXX is the end of the Bluetooth MAC. Any NUS client works: nRF Connect, a "Serial Bluetooth Terminal" app, or `tools/ble_console.py` (needs `pip install bleak`).
-
-The console only turns on when the firmware is built with a PIN, which is taken from the environment and never stored in the repository:
-
-```sh
-mkdir -p ~/.config/meshsat-esp32
-python3 -c "import secrets; print(''.join(secrets.choice('0123456789') for _ in range(8)))" > ~/.config/meshsat-esp32/ble-pin
-chmod 600 ~/.config/meshsat-esp32/ble-pin
-MESHSAT_BLE_CONSOLE_PIN=$(cat ~/.config/meshsat-esp32/ble-pin) pio run -t upload
-```
-
-A client starts locked. Its first line must be `unlock <PIN>`; until then, nothing it sends reaches the console and no output is sent to it. After three wrong lines it is disconnected. `tools/ble_console.py` reads the PIN from the same file and unlocks for you:
-
-```sh
-tools/ble_console.py status
-tools/ble_console.py --listen 5 selftest line test
-tools/ble_console.py pass AT "AT+CGMR" "~."
-```
-
-This is a bench console, not the node's product BLE interface. The link is not encrypted, so the PIN travels in the clear, and once unlocked, pass-through can send any AT command to the modem, including ones that start billable Iridium sessions. Don't leave a node advertising in a public place with a PIN others could have seen.
-
-### If the modem does not answer
-
-1. Run `line`. "driven high" means the RockBLOCK's pin 1 output reaches D7. "floating" means it does not: check that the wires sit on the **XIAO's** D6/D7 pads, not on the Wio-SX1262's (see [Wiring](#wiring)), and that nothing is connected to pin 7 (OnOff).
-2. Run `selftest`. It proves the firmware transmits on D6 and listens on D7, with no modem needed.
-3. Check RX/TX: RockBLOCK pin 1 → D7, pin 6 → D6. Ground Control's FAQ advises simply trying the other way round if in doubt.
-4. Check that ground is shared between the RockBLOCK, the XIAO and the 5 V source.
-5. Wait 10 s after powering the RockBLOCK.
-6. Power-cycle the RockBLOCK with **at least 2 s off** (Iridium 9603 Developer's Guide 3.2.1: a unit reapplied too fast can hang until the next proper power cycle).
-7. In pass-through, send `AT&K0`. Ground Control's pages disagree on whether flow control ships enabled, and in 3-wire mode it must be off.
-
-## Hardware validation
-
-- [x] `AT` → `OK` over GPIO43/44 with the wiring above (milestone 1 exit). Passed 19 Sep 2026 in 9 ms.
-- [x] Pass-through: `AT+CGMR`, `AT+CSQ` and the other read-only commands all answered.
-- [x] RockBLOCK stays usable through a XIAO reset. The ESP32-S3 ROM prints its boot text on GPIO43 at every reset, and the automatic test right after a reset still passed.
-- [ ] Voltage on RockBLOCK pin 1 when idle is ≥ 3.0 V (ESP32-S3 input threshold 2.48 V). Not measured yet; `line` shows it reads high.
-- [x] Power bank keeps its output on at the node's idle current: yes on its USB-C port. The USB-A port switches off (see [Power](#power)).
-- [ ] Nothing changes on the SX1262 side (the firmware never touches its pins). To check at the LoRa milestone.
-
-## Layout
-
-```
-boards/xiao-esp32s3-wio-sx1262/board_config.h   every GPIO number, with compile-time collision checks
-src/core/         ByteStream interface, Arduino UART adapter, logging, USB+BLE console mux
-src/iridium/      AT reply parser and the IridiumModem driver (no Arduino dependency)
-src/bluetooth/    BLE bench console (Nordic UART Service, PIN-locked)
-src/diag/         milestone 1 bench tool: AT link test and pass-through
-src/main.cpp      setup and the polling loop
-tests/            host unit tests (pio test -e native)
-tools/            ble_console.py, a command-line client for the BLE console
-docs/REFERENCES.md
-```
-
-Planned layers, added when their milestone comes: `src/radio/` (SX1262), the Android BLE GATT service in `src/bluetooth/`, `src/wifi/`, `src/routing/`, `src/storage/`.
-
-Design rules:
-
-- Nothing blocks. Each module advances a state machine in `poll()` and returns.
-- Protocol code talks to hardware only through `core::ByteStream`, so it runs in host tests.
-- The Iridium driver knows nothing about BLE, Wi-Fi or routing.
-
-## Direction
-
-The node is built as standalone PlatformIO firmware first, with Meshtastic integration later. Upstream Meshtastic already supports this board (`seeed_xiao_s3`), but it claims GPIO43/44 for a GPS. The Iridium driver is written to drop into a Meshtastic module (`poll()` maps onto `OSThread::runOnce()`, same core version). Evidence and the steps a fork would take: [docs/REFERENCES.md](docs/REFERENCES.md#meshtastic-findings).
-
-## Licence
-
-GPL-3.0, the same as the MeshSat Bridge and Android app, and compatible with a future Meshtastic (GPL-3.0) integration. See [LICENSE](LICENSE).
+Copyright 2026 Elli and Kyriakos. [GNU General Public License v3.0](LICENSE).
