@@ -7,11 +7,21 @@
 #include <Arduino.h>
 #include <driver/gpio.h>
 
+#include "bluetooth/BleConsole.h"
 #include "board_config.h"
+#include "core/DualStream.h"
 #include "core/Log.h"
 #include "core/UartStream.h"
+#include "core/Version.h"
 #include "diag/ModemDebugApp.h"
 #include "iridium/IridiumModem.h"
+
+// BLE console PIN, passed in at build time from the environment variable of
+// the same name (platformio.ini) so it never lives in the repository. Empty
+// or out of range: the BLE console stays off.
+#ifndef MESHSAT_BLE_CONSOLE_PIN
+#define MESHSAT_BLE_CONSOLE_PIN ""
+#endif
 
 namespace {
 
@@ -24,14 +34,18 @@ constexpr size_t kConsoleTxBufferBytes = 2048;
 HardwareSerial modemUart(board::kModemUartNumber);
 core::UartStream modemLink(modemUart);
 iridium::IridiumModem modem(modemLink);
-diag::ModemDebugApp app(Serial, modem);
+
+// One console over USB and BLE: output goes to both, input comes from either.
+bluetooth::BleConsole bleConsole;
+core::DualStream console(Serial, bleConsole);
+diag::ModemDebugApp app(console, modem);
 
 void beginConsole() {
     Serial.setTxBufferSize(kConsoleTxBufferBytes);
     Serial.setTxTimeoutMs(0);
     // Baud rate is meaningless for USB CDC; the value only satisfies the API.
     Serial.begin(115200);
-    core::Log::begin(Serial);
+    core::Log::begin(console);
 }
 
 void beginModemUart() {
@@ -45,6 +59,18 @@ void beginModemUart() {
     gpio_pullup_en(static_cast<gpio_num_t>(board::kModemRxPin));
 }
 
+void beginBleConsole() {
+    if (bleConsole.begin(core::kFirmwareName, MESHSAT_BLE_CONSOLE_PIN)) {
+        core::Log::info("BLE console: advertising as %s (Nordic UART Service); a client sends unlock <PIN> first",
+                        bleConsole.deviceName());
+        return;
+    }
+    core::Log::warn("BLE console off: no usable PIN built in (set MESHSAT_BLE_CONSOLE_PIN, %u to %u characters, "
+                    "when building)",
+                    static_cast<unsigned>(bluetooth::BleConsole::kMinPinLength),
+                    static_cast<unsigned>(bluetooth::BleConsole::kMaxPinLength));
+}
+
 }
 
 void setup() {
@@ -54,11 +80,13 @@ void setup() {
     modem.setListener(&app);
     modem.begin();
     app.begin(millis());
+    beginBleConsole();
 }
 
 void loop() {
     const uint32_t now = millis();
     modem.poll(now);
+    bleConsole.poll(now);
     app.poll(now);
     // Give up the CPU for one tick so other tasks run. Nothing above waits
     // on I/O; the UART driver buffers bytes in the meantime.

@@ -115,6 +115,29 @@ A passing test looks like this (timings will differ; with the modem's echo on, t
 
 On failure the log gives the likely causes in order: wiring, power, the 2-second power cycle, flow control. Any line ending you type (CR, LF or CR LF) reaches the modem as a single CR, because the 9603 accepts only CR. Commands such as `AT&K0` or `AT+CSQ` can be tried in pass-through.
 
+### Over Bluetooth (BLE)
+
+The same console is available over BLE, so the XIAO can run from a power bank with no USB cable. It uses the Nordic UART Service and advertises as `meshsat-esp32-XXXX`, where XXXX is the end of the Bluetooth MAC. Any NUS client works: nRF Connect, a "Serial Bluetooth Terminal" app, or `tools/ble_console.py` (needs `pip install bleak`).
+
+The console only turns on when the firmware is built with a PIN, which is taken from the environment and never stored in the repository:
+
+```sh
+mkdir -p ~/.config/meshsat-esp32
+python3 -c "import secrets; print(''.join(secrets.choice('0123456789') for _ in range(8)))" > ~/.config/meshsat-esp32/ble-pin
+chmod 600 ~/.config/meshsat-esp32/ble-pin
+MESHSAT_BLE_CONSOLE_PIN=$(cat ~/.config/meshsat-esp32/ble-pin) pio run -t upload
+```
+
+A client starts locked. Its first line must be `unlock <PIN>`; until then, nothing it sends reaches the console and no output is sent to it. After three wrong lines it is disconnected. `tools/ble_console.py` reads the PIN from the same file and unlocks for you:
+
+```sh
+tools/ble_console.py status
+tools/ble_console.py --listen 5 selftest line test
+tools/ble_console.py pass AT "AT+CGMR" "~."
+```
+
+This is a bench console, not the node's product BLE interface. The link is not encrypted, so the PIN travels in the clear, and once unlocked, pass-through can send any AT command to the modem, including ones that start billable Iridium sessions. Don't leave a node advertising in a public place with a PIN others could have seen.
+
 ### If the modem does not answer
 
 1. Check RX/TX: RockBLOCK pin 1 → D7, pin 6 → D6. Ground Control's FAQ advises simply trying the other way round if in doubt.
@@ -136,15 +159,17 @@ On failure the log gives the likely causes in order: wiring, power, the 2-second
 
 ```
 boards/xiao-esp32s3-wio-sx1262/board_config.h   every GPIO number, with compile-time collision checks
-src/core/         ByteStream interface, Arduino UART adapter, logging
+src/core/         ByteStream interface, Arduino UART adapter, logging, USB+BLE console mux
 src/iridium/      AT reply parser and the IridiumModem driver (no Arduino dependency)
+src/bluetooth/    BLE bench console (Nordic UART Service, PIN-locked)
 src/diag/         milestone 1 bench tool: AT link test and pass-through
 src/main.cpp      setup and the polling loop
 tests/            host unit tests (pio test -e native)
+tools/            ble_console.py, a command-line client for the BLE console
 docs/REFERENCES.md
 ```
 
-Planned layers, added when their milestone comes: `src/radio/` (SX1262), `src/bluetooth/` (BLE GATT to Android), `src/wifi/`, `src/routing/`, `src/storage/`.
+Planned layers, added when their milestone comes: `src/radio/` (SX1262), the Android BLE GATT service in `src/bluetooth/`, `src/wifi/`, `src/routing/`, `src/storage/`.
 
 Design rules:
 
