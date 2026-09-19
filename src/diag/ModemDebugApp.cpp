@@ -2,6 +2,12 @@
 
 #include <Arduino.h>
 #include <driver/gpio.h>
+#include <esp_rom_gpio.h>
+#include <soc/gpio_periph.h>
+#include <soc/gpio_struct.h>
+#include <soc/io_mux_reg.h>
+#include <soc/soc.h>
+#include <soc/uart_periph.h>
 
 #include <cctype>
 #include <cstdio>
@@ -54,6 +60,10 @@ void ModemDebugApp::begin(uint32_t nowMs) {
 void ModemDebugApp::poll(uint32_t nowMs) {
     readConsole(nowMs);
 
+    if (selfTestActive_ && reached(nowMs, selfTestEndMs_)) {
+        finishSelfTest();
+    }
+
     if (testCompleted_) {
         testCompleted_ = false;
         reportAtTest(completedOutcome_);
@@ -66,6 +76,12 @@ void ModemDebugApp::poll(uint32_t nowMs) {
 }
 
 void ModemDebugApp::onModemIdleBytes(const uint8_t* data, size_t length) {
+    if (selfTestActive_) {
+        for (size_t i = 0; i < length && selfTestRxLength_ < kSelfTestCapacity; ++i) {
+            selfTestRx_[selfTestRxLength_++] = data[i];
+        }
+        return;
+    }
     if (mode_ == Mode::Passthrough) {
         Log::raw(data, length);
         return;
@@ -199,6 +215,8 @@ void ModemDebugApp::runCommandLine(uint32_t nowMs) {
         enterPassthrough();
     } else if (equalsIgnoreCase(command, "status")) {
         printStatus(nowMs);
+    } else if (equalsIgnoreCase(command, "selftest")) {
+        startSelfTest(nowMs);
     } else if (equalsIgnoreCase(command, "line")) {
         if (testInFlight_) {
             Log::warn("an AT test is running, try again in a moment");
@@ -378,6 +396,77 @@ void ModemDebugApp::probeRxLine() {
     }
 }
 
+void ModemDebugApp::printPinRouting() {
+    const int uart = board::kModemUartNumber;
+    const uint32_t tx = static_cast<uint32_t>(board::kModemTxPin);
+    const uint32_t rx = static_cast<uint32_t>(board::kModemRxPin);
+    const uint32_t txSignal = UART_PERIPH_SIGNAL(uart, SOC_UART_TX_PIN_IDX);
+    const uint32_t rxSignal = UART_PERIPH_SIGNAL(uart, SOC_UART_RX_PIN_IDX);
+
+    const uint32_t txMux = REG_READ(GPIO_PIN_MUX_REG[tx]);
+    const uint32_t rxMux = REG_READ(GPIO_PIN_MUX_REG[rx]);
+    const uint32_t txOutSignal = GPIO.func_out_sel_cfg[tx].func_sel;
+    const uint32_t txOutputEnabled = tx >= 32 ? (GPIO.enable1.data >> (tx - 32)) & 1 : (GPIO.enable >> tx) & 1;
+    const uint32_t rxInPad = GPIO.func_in_sel_cfg[rxSignal].func_sel;
+    const uint32_t rxViaMatrix = GPIO.func_in_sel_cfg[rxSignal].sig_in_sel;
+
+    const bool txOk = ((txMux >> MCU_SEL_S) & MCU_SEL_V) == PIN_FUNC_GPIO && txOutSignal == txSignal && txOutputEnabled;
+    const bool rxOk = rxViaMatrix && rxInPad == rx && ((rxMux >> FUN_IE_S) & 1);
+
+    Log::info("TX GPIO%lu: IO MUX function %lu (expect %d), matrix output signal %lu (expect UART%d TX = %lu), "
+              "output enable %lu: %s",
+              static_cast<unsigned long>(tx), static_cast<unsigned long>((txMux >> MCU_SEL_S) & MCU_SEL_V),
+              PIN_FUNC_GPIO, static_cast<unsigned long>(txOutSignal), uart, static_cast<unsigned long>(txSignal),
+              static_cast<unsigned long>(txOutputEnabled), txOk ? "OK" : "WRONG");
+    Log::info("RX: UART%d RX signal %lu takes GPIO%lu %s (expect GPIO%lu via matrix); GPIO%lu input %lu, pull-up %lu, "
+              "pull-down %lu: %s",
+              uart, static_cast<unsigned long>(rxSignal), static_cast<unsigned long>(rxInPad),
+              rxViaMatrix ? "via matrix" : "via IO MUX", static_cast<unsigned long>(rx), static_cast<unsigned long>(rx),
+              static_cast<unsigned long>((rxMux >> FUN_IE_S) & 1), static_cast<unsigned long>((rxMux >> FUN_PU_S) & 1),
+              static_cast<unsigned long>((rxMux >> FUN_PD_S) & 1), rxOk ? "OK" : "WRONG");
+}
+
+void ModemDebugApp::startSelfTest(uint32_t nowMs) {
+    if (selfTestActive_ || testInFlight_ || modem_.commandInFlight() || modem_.transmitPending()) {
+        Log::warn("the modem link is busy, try again in a moment");
+        return;
+    }
+    printPinRouting();
+
+    // Point the UART receiver at our own TX pad for a moment. Whatever the
+    // UART really drives onto the TX pad comes straight back, so this checks the
+    // firmware's transmit path without touching the wiring. The modem still
+    // receives the same bytes on D6 as usual.
+    const uint32_t rxSignal = UART_PERIPH_SIGNAL(board::kModemUartNumber, SOC_UART_RX_PIN_IDX);
+    gpio_input_enable(static_cast<gpio_num_t>(board::kModemTxPin));
+    esp_rom_gpio_connect_in_signal(board::kModemTxPin, rxSignal, false);
+
+    selfTestActive_ = true;
+    selfTestRxLength_ = 0;
+    selfTestEndMs_ = nowMs + kSelfTestWindowMs;
+    static const uint8_t kProbe[] = {'A', 'T', '\r'};
+    const size_t queued = modem_.writeRaw(kProbe, sizeof(kProbe));
+    Log::info("self-test: UART%d receiver now reads GPIO%d (its own TX); queued %u bytes \"AT\\r\"",
+              board::kModemUartNumber, board::kModemTxPin, static_cast<unsigned>(queued));
+}
+
+void ModemDebugApp::finishSelfTest() {
+    const uint32_t rxSignal = UART_PERIPH_SIGNAL(board::kModemUartNumber, SOC_UART_RX_PIN_IDX);
+    esp_rom_gpio_connect_in_signal(board::kModemRxPin, rxSignal, false);
+    selfTestActive_ = false;
+
+    Log::escaped("self-test: read back from our TX pin", selfTestRx_, selfTestRxLength_);
+    const bool pass = selfTestRxLength_ == 3 && std::memcmp(selfTestRx_, "AT\r", 3) == 0;
+    if (pass) {
+        Log::info("self-test: PASS, the firmware drives \"AT\\r\" onto GPIO%d at %lu baud; receiver back on GPIO%d",
+                  board::kModemTxPin, static_cast<unsigned long>(board::kModemBaudRate), board::kModemRxPin);
+    } else {
+        Log::warn("self-test: FAIL, the UART did not read back its own \"AT\\r\"; receiver back on GPIO%d",
+                  board::kModemRxPin);
+    }
+    printPinRouting();
+}
+
 void ModemDebugApp::printBanner() {
     Log::info("%s %s, board %s, milestone 1: RockBLOCK 9603 AT -> OK", core::kFirmwareName, core::kFirmwareVersion,
               board::kBoardName);
@@ -399,6 +488,7 @@ void ModemDebugApp::printHelp() {
     Log::info("  pass     pass-through to the RockBLOCK; Enter sends CR, ~. at line start leaves");
     Log::info("  status   counters, last result and settings");
     Log::info("  line     check whether anything drives the RX wire (GPIO%d, D7)", board::kModemRxPin);
+    Log::info("  selftest show the UART pin routing and read back our own TX pin (no modem needed)");
     Log::info("  help     this list");
 }
 

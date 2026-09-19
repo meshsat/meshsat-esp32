@@ -59,6 +59,11 @@ private:
     static constexpr int kLineSamples = 8;
     static constexpr uint32_t kLineSampleGapUs = 100;
 
+    // UART self-test: how long the receiver listens to its own TX pin.
+    // "AT\r" takes about 1.6 ms at 19200 baud.
+    static constexpr uint32_t kSelfTestWindowMs = 50;
+    static constexpr size_t kSelfTestCapacity = 32;
+
     void readConsole(uint32_t nowMs);
     void handleCommandByte(uint8_t byte, uint32_t nowMs);
     void handlePassthroughByte(uint8_t byte, uint32_t nowMs);
@@ -74,6 +79,9 @@ private:
     void forwardToModem(uint8_t byte);
 
     void probeRxLine();
+    void printPinRouting();
+    void startSelfTest(uint32_t nowMs);
+    void finishSelfTest();
 
     void printBanner();
     void printHelp();
@@ -109,6 +117,11 @@ private:
     iridium::CommandOutcome lastTestOutcome_ = iridium::CommandOutcome::None;
     uint32_t droppedPassthroughBytes_ = 0;
     bool dropWarned_ = false;
+
+    bool selfTestActive_ = false;
+    uint32_t selfTestEndMs_ = 0;
+    uint8_t selfTestRx_[kSelfTestCapacity] = {};
+    size_t selfTestRxLength_ = 0;
 };
 
 }
