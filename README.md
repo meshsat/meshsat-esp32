@@ -65,14 +65,14 @@ The RockBLOCK needs an active Ground Control line rental and message credits. Ev
 
 **RockBLOCK wiring, four wires either way.** Pin 7 (OnOff) and pin 9 (Li-Ion) stay unconnected.
 
-| RockBLOCK pin | v0: XIAO ESP32-S3 | v1: T-Beam Supreme header PM1 |
+| RockBLOCK pin | v0: XIAO ESP32-S3 | v1: T-Beam Supreme, label printed on the long header |
 |:---:|---|---|
-| 1 RXD (modem output) | D7, GPIO44 | pin 12, GPIO44 |
-| 6 TXD (modem input) | D6, GPIO43 | pin 13, GPIO43 |
-| 8 power in | a 5 V source rated ≥ 500 mA | pin 9, DCDC5 (switched by the firmware) |
-| 10 GND | GND, shared with the 5 V source | pin 8, GND |
+| 1 RXD (modem output) | D7, GPIO44 | **RXD** (GPIO44) |
+| 6 TXD (modem input) | D6, GPIO43 | **TXD** (GPIO43) |
+| 8 power in | a 5 V source rated ≥ 500 mA | **DC5** (the 3.7 V rail the firmware switches on for the modem; never DC1, the board's own 3.3 V) |
+| 10 GND | GND, shared with the 5 V source | **GND** |
 
-On v0, use the XIAO's own D6/D7 pads. The Wio-SX1262's D5/D6/D7 pads are not connected on the ESP32-S3 kit. A step-by-step build guide for both versions is on [docs.meshsat.net](https://docs.meshsat.net/node/build). The full v0 wiring, power notes and troubleshooting are in the [bench manual](docs/BENCH.md), and every hardware fact with its source is in [docs/REFERENCES.md](docs/REFERENCES.md).
+On v1 the labels are the ones printed beside the pins (LilyGO's pinout image); TXD and RXD are also on the 4-pin QWIIC socket. The 2.4 GHz antenna for Bluetooth is on the board; only the LoRa antenna is external, and it must be on before the region is set. On v0, use the XIAO's own D6/D7 pads. The Wio-SX1262's D5/D6/D7 pads are not connected on the ESP32-S3 kit. A step-by-step build guide for both versions is on [docs.meshsat.net](https://docs.meshsat.net/node/build). The full v0 wiring, power notes and troubleshooting are in the [bench manual](docs/BENCH.md), and every hardware fact with its source is in [docs/REFERENCES.md](docs/REFERENCES.md).
 
 ## What is proven, and what is not
 
@@ -83,7 +83,7 @@ On v0, use the XIAO's own D6/D7 pads. The Wio-SX1262's D5/D6/D7 pads are not con
 | A satellite message out, Hub to phone to node to Iridium | One message delivered, 19 Sep 2026 |
 | A satellite message in, fetched by the app after a ring alert | One message received, 19 Sep 2026 |
 | The app reconnecting after its own restart and taking the modem back | Verified 19 Sep 2026. Recovery from a drop mid-session has **not been exercised yet** |
-| v1 on the T-Beam Supreme | Firmware builds. **Not run on hardware yet** |
+| v1 on the T-Beam Supreme | Running since 21 Sep 2026: flashed, paired with the app (fixed PIN), modem answering through the BLE pipe, satellite messages both ways from the garden |
 | Routing on the node with no phone connected | **Not built yet** |
 | Battery life | **Not measured** |
 | Range, weather, long-term reliability | **Not tested** |
