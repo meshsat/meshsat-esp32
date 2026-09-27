@@ -33,7 +33,7 @@ Two more characteristics on the same service. A client that ignores them keeps w
 
 | Characteristic | UUID | Properties | Carries |
 |---|---|---|---|
-| STATS | `9c22cf07-2256-4fc2-b6ee-ab0ceb12198d` | read, notify | 48 bytes of node health, little-endian, notified on change and at most every 2 s |
+| STATS | `9c22cf07-2256-4fc2-b6ee-ab0ceb12198d` | read, notify | 52 bytes of node health, little-endian, notified on change and at most every 2 s |
 | PASS | `5c1000e8-f411-4f3d-a4c9-5ee0610a8e66` | write | pass windows from the client, up to eight |
 
 STATS, byte by byte:
