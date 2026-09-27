@@ -74,3 +74,5 @@ If the node's Bluetooth pairing mode is anything other than "no PIN", all five c
 ## Changes
 
 Any change to this contract bumps the version byte in STATUS, and the MeshSat Android app is updated first, with the iOS app following it. Additions that a version 1 client can ignore, like STATS and PASS, ship before the bump.
+
+Adding or removing a characteristic changes the attribute table, and a bonded phone keeps a cached copy of the old one. For the twenty boots after such a change the node indicates Service Changed to every authenticated peer as soon as the link is up, so the phone discovers the table again. A client may also drop its own cache when the service comes back without a characteristic it expects.
