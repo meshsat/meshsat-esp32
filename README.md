@@ -57,7 +57,7 @@ Two versions. v0 proved the idea on the bench; v1 is the one meant to become a p
 | Power | USB power bank | one 18650 cell in the T-Beam, charged over USB-C; the modem runs from the T-Beam's power chip |
 | Case | Peli 1050 | Peli 1020, IP68 USB-C and a panel power button |
 | Firmware env | `meshsat-xiao-s3-rockblock` | `meshsat-tbeam-s3-rockblock` |
-| State | Tested on the bench, September 2026 | Parts arriving, not built yet |
+| State | Tested on the bench, September 2026; retired from the phone role on 21 Sep | Running since 21 Sep 2026 on the bench and in the garden; the Peli build is not finished |
 
 <img src="docs/images/node-v0-garden.jpg" alt="The closed Peli case between two planters in a garden" width="560">
 
@@ -82,9 +82,11 @@ On v1 the labels are the ones printed beside the pins (LilyGO's pinout image); T
 | Iridium modem over the same Bluetooth link (v0) | Verified on the bench, 19 Sep 2026: AT commands, and a binary loopback of up to 270 bytes |
 | A satellite message out, Hub to phone to node to Iridium | One message delivered, 19 Sep 2026 |
 | A satellite message in, fetched by the app after a ring alert | One message received, 19 Sep 2026 |
-| The app reconnecting after its own restart and taking the modem back | Verified 19 Sep 2026. Recovery from a drop mid-session has **not been exercised yet** |
+| The app reconnecting after its own restart and taking the modem back | Verified 19 Sep 2026 |
+| Recovery from a Bluetooth drop, even mid-session | Bench, 26 Sep 2026: six forced drops, six reclaims within a second, one session held through the drop and its result caught |
+| The node rebooting itself when its Bluetooth stack no longer serves | Bench, 26 Sep 2026: three unpaired links, five minutes, reboot, the reason read back at boot |
 | v1 on the T-Beam Supreme | Running since 21 Sep 2026: flashed, paired with the app (fixed PIN), modem answering through the BLE pipe, satellite messages both ways from the garden |
-| Routing on the node with no phone connected | **Not built yet** |
+| Routing on the node with no phone connected | Built 27 Sep 2026: the node carries the channel `i9603` over Iridium on its own. Taking the modem, the init sequence, status reads and the hand-over to a phone are proven on the desk. **No satellite message sent or received by the node alone yet** |
 | Battery life | **Not measured** |
 | Range, weather, long-term reliability | **Not tested** |
 | Deployment to a real end user | **Never** |
