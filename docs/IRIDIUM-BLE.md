@@ -63,6 +63,8 @@ STATS, byte by byte:
 
 The signal byte is information for a screen. It is never a reason to hold a send: this modem has sent and received at 0.
 
+STATS is rebuilt every 2 seconds and a read always returns the current value. A notification goes out only when something other than the three moving fields changed: the signal age, the last session age and the uptime are excluded from that comparison, so an idle node stays quiet on the air. A client that shows those ages re-reads the characteristic while they are on screen.
+
 PASS, written with response: `01`, then the number of windows (at most 8), then for each window a u32 start as Unix seconds, a u16 duration in seconds and a u8 peak elevation in degrees, all little-endian. A write replaces the node's list. The node's own routing then opens routine sessions only inside a window; a ring alert or a message queued at the gateway still goes at once, and a node that never received a list is not held back. Writes are accepted from any client on the service, whoever owns the modem.
 
 STATUS carries the flags byte and the signal byte after the owner since version 2. Clients accept a STATUS of 2 or 4 bytes and read only what is there.
