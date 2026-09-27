@@ -86,7 +86,7 @@ On v1 the labels are the ones printed beside the pins (LilyGO's pinout image); T
 | Recovery from a Bluetooth drop, even mid-session | Bench, 26 Sep 2026: six forced drops, six reclaims within a second, one session held through the drop and its result caught |
 | The node rebooting itself when its Bluetooth stack no longer serves | Bench, 26 Sep 2026: three unpaired links, five minutes, reboot, the reason read back at boot |
 | v1 on the T-Beam Supreme | Running since 21 Sep 2026: flashed, paired with the app (fixed PIN), modem answering through the BLE pipe, satellite messages both ways from the garden |
-| Routing on the node with no phone connected | Built 27 Sep 2026: the node carries the channel `i9603` over Iridium on its own. Taking the modem, the init sequence, status reads and the hand-over to a phone are proven on the desk. **No satellite message sent or received by the node alone yet** |
+| Routing on the node with no phone connected | Proven 27 Sep 2026 in the garden: a text typed on a T-Deck on the channel `i9603` reached the Hub over LoRa and Iridium through the node alone, and the Hub's reply came back to the T-Deck the same way, 14 s after it was queued |
 | Battery life | **Not measured** |
 | Range, weather, long-term reliability | **Not tested** |
 | Deployment to a real end user | **Never** |
