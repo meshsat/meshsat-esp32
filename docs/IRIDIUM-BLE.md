@@ -19,6 +19,16 @@ Contract version 2, since firmware 2.8.0 of 27 September 2026. A version 1 clien
 - Modem output while nobody owns it is discarded.
 - Owner `02` is the node itself. When no client is subscribed to TX, the node's own routing takes the modem for the mesh channel it carries over Iridium. It hands the modem to a client within about a second of the TX subscription, between its own AT commands, and only after the result when one of its satellite sessions is in flight, which can take up to 90 s. A client that reads owner `02` should wait, not fail.
 
+## What changes hands with the modem
+
+The modem holds one outgoing message and one incoming message, and both stay in it when the owner changes.
+
+- A client on the pipe is the gateway. While a client is subscribed to TX, the node does not queue the texts it hears on its Iridium channel. The client sends them if its own rules say so. Texts the node queued before the client subscribed stay in the node's queue for up to 30 minutes and go out when the node has the modem again.
+- Before the node hands the modem over, it clears its own outgoing message from the modem, so the client's next session cannot send it. The text stays in the node's queue.
+- When the node takes the modem, it clears the outgoing buffer. A client keeps its own queue and writes its message again when it has the modem back.
+- When the node takes the modem, it does not clear the incoming buffer. It asks `AT+SBDSX`. If a message is there, the node reads it, broadcasts it on its Iridium channel and only then clears it. So a message that a client's session brought in and the client did not read is not lost. A client that wants such a message for itself reads it before it lets go, or takes the modem back within a minute, which is how long the node waits after a client leaves.
+- A message the node cannot read, or cannot broadcast because it has no Iridium channel, stays in the modem. After taking the modem, a client asks `AT+SBDSX` and reads a message it finds there.
+
 ## The serial line
 
 - The pipe adds and removes nothing. The link to the RockBLOCK is 19200 8N1.
