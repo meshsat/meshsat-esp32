@@ -162,6 +162,7 @@ src/diag/         AT link test and pass-through
 src/main.cpp      setup and the polling loop
 tests/            host unit tests (pio test -e native)
 tools/            ble_console.py, a command-line client for the BLE console
+                  pipe_client.py, node_log.py and pair_node.py, bench tools for the node firmware's Iridium service
 ```
 
 Design rules:
