@@ -87,6 +87,10 @@ On v1 the labels are the ones printed beside the pins (LilyGO's pinout image); T
 | The node rebooting itself when its Bluetooth stack no longer serves | Bench, 26 Sep 2026: three unpaired links, five minutes, reboot, the reason read back at boot |
 | v1 on the T-Beam Supreme | Running since 21 Sep 2026: flashed, paired with the app (fixed PIN), modem answering through the BLE pipe, satellite messages both ways from the garden |
 | Routing on the node with no phone connected | Proven 27 Sep 2026 in the garden: a text typed on a T-Deck on the channel `i9603` reached the Hub over LoRa and Iridium through the node alone, and the Hub's reply came back to the T-Deck the same way, 14 s after it was queued |
+| The modem changing hands between the phone and the node | Bench, 2 Oct 2026: a message the phone left unread in the modem was passed on to the mesh instead of deleted, a text sent while the phone held the modem was not sent a second time, and the node took its own text out of the modem before the phone took over |
+| A second device pairing without the phone losing its bond | Bench, 2 Oct 2026, a phone and a laptop: the phone reconnected without pairing again. Not tried with three devices |
+| The node recovering when its Bluetooth stops advertising | Bench, 2 Oct 2026, with advertising stopped on purpose: started again within a minute, and the node rebooted itself when that did not help |
+| The node saying why it last went down | Bench, 2 Oct 2026: a flash, a restart and a watchdog reboot each read back at the next start. Low battery, a switch-off, a crash and a brownout were not provoked |
 | Battery life | **Not measured** |
 | Range, weather, long-term reliability | **Not tested** |
 | Deployment to a real end user | **Never** |
