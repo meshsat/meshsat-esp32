@@ -26,6 +26,8 @@ TX = "469354dc-4c89-41ed-b939-d707c7a11f49"
 STATUS = "69a4064d-78b9-46e5-a30a-1862e553245a"
 STATS = "9c22cf07-2256-4fc2-b6ee-ab0ceb12198d"
 OWNERS = {0: "none", 1: "client", 2: "node"}
+STOPS = {0: "not recorded", 1: "power loss or reset", 2: "USB reset", 3: "restart", 4: "Bluetooth watchdog",
+         5: "crash", 6: "watchdog timer", 7: "brownout", 8: "low battery", 9: "switched off", 10: "sleep"}
 
 
 def stamp():
@@ -124,9 +126,11 @@ async def main():
                     say(f"  STATS of {len(raw)} bytes: {bytes(raw).hex()}")
                     continue
                 u32 = lambda at: int.from_bytes(raw[at:at + 4], "little")
+                stop = STOPS.get(raw[50], f"code {raw[50]}")
+                battery = f" at {raw[51] / 10:.1f} V" if raw[51] else ""
                 say(f"  STATS owner={OWNERS.get(raw[1], raw[1])} flags={raw[2]:02x} sessions since boot={u32(8)} "
-                    f"uptime={u32(24)} s node sessions={u32(36)} node sent={u32(40)} node received={u32(44)} "
-                    f"today {raw[48]}/{raw[49]}")
+                    f"uptime={u32(24)} s watchdog reboots={u32(28)} node sessions={u32(36)} node sent={u32(40)} "
+                    f"node received={u32(44)} today {raw[48]}/{raw[49]} last stop={stop}{battery}")
             elif kind == "wait":
                 say(f"holding the modem for {arg} s")
                 await asyncio.sleep(float(arg))

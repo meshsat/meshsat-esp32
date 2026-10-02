@@ -69,7 +69,10 @@ STATS, byte by byte:
 | 44 | u32 | messages the node's own routing received |
 | 48 | u8 | the node's own sessions today |
 | 49 | u8 | the node's daily cap |
-| 50 | u8[2] | reserved, zero |
+| 50 | u8 | why the node's previous run ended, see below. Zero on firmware before 2 October 2026 |
+| 51 | u8 | battery at that stop in units of 100 mV, when the stop was planned; zero when not recorded |
+
+Why the previous run ended: `0` not recorded, `1` power loss or reset (the cell was pulled or collapsed, the reset button, or the reset a flashing tool ends with; the chip reports them alike), `2` a reset over USB while the node ran, `3` a restart the firmware asked for, `4` the Bluetooth watchdog, `5` crash, `6` watchdog timer, `7` brownout, `8` low battery (the node shut itself off), `9` switched off, `10` sleep. A client shows a value it does not know as its number.
 
 The signal byte is information for a screen. It is never a reason to hold a send: this modem has sent and received at 0.
 
