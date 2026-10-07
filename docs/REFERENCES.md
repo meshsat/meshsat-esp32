@@ -107,11 +107,11 @@ The firmware drives them with **UART1**, routed through the GPIO matrix. See "UA
 
 ### RockBLOCK 9704 on the T-Beam Supreme (compact v2)
 
-Decided on 7 October 2026 (MESHSAT-1507). Not built or tested yet.
+Decided on 7 October 2026 (MESHSAT-1507). First wired and tried the same evening: see the bench note at the end of this section.
 
 | 9704 pin | Name | Direction, seen from the 9704 | T-Beam |
 |---|---|---|---|
-| 12 | V_BATT | power in, 3.6 to 4.5 V, up to about 1 A | DC5 (AXP2101 DCDC5 at 3700 mV, switched by firmware) |
+| 12 | V_BATT | power in, 3.6 to 4.5 V, up to about 1 A | DC5 (AXP2101 DCDC5 at 3700 mV, switched by firmware); not enough on the bench, see the note below |
 | 16 | V_IN- | ground | GND; pins 1, 4 and 10 bridged to it on the 9704 header |
 | 14 | RXD | input | TXD, GPIO43 |
 | 13 | TXD | output | RXD, GPIO44 |
@@ -143,6 +143,16 @@ To measure on the bench before the thresholds are fixed:
 
 - DC5 at pin 12 while the supercapacitors charge (the battery input draws up to about 1 A, which is DC5's rating) and during a transmission, with a full cell and with the cell near 3.75 V.
 - On the battery input the red PWR LED stays dark (hardware page). The green RDY LED means booted.
+
+Bench, 7 October 2026, 22:45 to 23:15 CEST (MESHSAT-1507, MESHSAT-1382):
+
+- The v1 node's modem wire is on the header pin labelled DC5. The owner confirmed it against the board that evening, and the 9603 sent and received on that rail (MESHSAT-1382 closed).
+- The same pins then fed a kit 9704's V_BATT. The green RDY LED lit once at the first connection and went off before any node reset. After two clean power-ups (power wire off pin 12, reset on the node, wire back within 60 s) it stayed dark.
+- Three `GET apiVersion {}` runs through the Bluetooth pipe, the exact frame the Bridge's JSPR driver sends, got no byte back while the node's UART was open (meshsat-firmware d5deae772, the `meshsat-tbeam-s3-rockblock9704` build).
+- Reading: DC5 at 3.7 V is 100 mV above the 9704's floor, and its 1 A rating equals the supercapacitor charge current, so the rail sags under the floor and the 9704 runs its clean shutdown. The 9603 has 700 mV of margin on the same pin.
+- Not firmware: the rail is set and enabled at boot with its under-voltage auto-off disabled, and nothing switches it off on a reset. The AXP2101 cannot measure a DCDC output and has no rail above 3.7 V.
+- Next: a multimeter across pins 12 and 16 during a hot plug and during a power-up with the wire left on. Then V_BATT from the cell (header pin VBAT, 3.0 to 4.2 V, no 1 A ceiling; the modem drops out below about 20 percent of charge, and a later I_EN wire gives the firmware a clean off), or a boost.
+- The 9704's pin names are seen from the modem (14 RXD is its input). The 9603's are seen from the host (6 TXD is its input). So the 9704 is wired crossed by label.
 
 ## Facts that shaped the code, and open questions
 
