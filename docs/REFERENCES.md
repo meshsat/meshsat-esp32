@@ -1,6 +1,6 @@
 # References
 
-The sources checked before writing hardware-specific code, the facts taken from each, and the GPIO assignments that follow from them. All pages were read on 19 September 2026.
+The sources checked before writing hardware-specific code, the facts taken from each, and the GPIO assignments that follow from them. The 9603, Seeed, Espressif and Meshtastic pages were read on 19 September 2026, the RockBLOCK 9704 pages on 7 October 2026.
 
 Where two official sources disagree, both are quoted and the choice made is stated.
 
@@ -19,6 +19,19 @@ Where two official sources disagree, both are quoted and the choice made is stat
 | [Iridium 9603/9603N SBD Transceiver Developer's Guide, Rev 3.1](https://cdn.rock7.com/docs/9603-Developers-guide.pdf) | 26 Aug 2014 | the module inside the RockBLOCK: power, logic levels, recovery, RF |
 
 The Iridium *ISU AT Command Reference* (MAN0009 Rev 2.0), which Ground Control links from the AT commands page, returned a script page instead of the PDF from both Ground Control URLs. It has **not** been read. The AT behaviour this firmware relies on (CR terminator, verbose `OK`/`ERROR` result codes, command echo) is taken from the Ground Control pages above and from the Bridge's field-tested 9603 driver.
+
+### Ground Control (RockBLOCK 9704)
+
+There is no developer's guide PDF for the 9704 like the 9603's. Ground Control's documentation for it is the docs section below plus the board schematics.
+
+| Page | Page date | Used for |
+|---|---|---|
+| [Hardware](https://docs.groundcontrol.com/iot/rockblock-9704/hardware) | reviewed 30 Jun 2025 | 16-pin pinout, logic levels, start and shutdown sequence, power inputs, USB-TTL bridge |
+| [Specification](https://docs.groundcontrol.com/iot/rockblock-9704/specification) | reviewed 1 May 2025 | supply ranges, power figures, 230400 baud default |
+| [Installation](https://docs.groundcontrol.com/iot/rockblock-9704/installation) | read 7 Oct 2026 | Iridium certification: battery supply within 3.6 to 4.5 V, no other transmitter in the same housing |
+| [Antenna options](https://docs.groundcontrol.com/iot/rockblock-9704/antenna) | updated 3 Jul 2025 | RF output, qualified antenna, cable loss |
+| Schematic RockBLOCK 9704-SMA rev 2B1 (linked from the hardware page) | read 7 Oct 2026 | I_EN divider and buffer, the ground net, V_IN+ fuse and reverse protection, the FT234XD on the shared UART |
+| [rock7/RockBLOCK-9704 README](https://github.com/rock7/RockBLOCK-9704), "Hardware Setup" | read 7 Oct 2026 | the library's own Raspberry Pi wiring, which adds P_EN, I_EN and I_BTD because the library runs the start and stop sequence |
 
 ### Seeed Studio
 
@@ -91,6 +104,45 @@ Why GPIO43/44 work:
 - `board_config.h` checks all of this with `static_assert`.
 
 The firmware drives them with **UART1**, routed through the GPIO matrix. See "UART0 boot output" below for why it is not UART0.
+
+### RockBLOCK 9704 on the T-Beam Supreme (compact v2)
+
+Decided on 7 October 2026 (MESHSAT-1507). Not built or tested yet.
+
+| 9704 pin | Name | Direction, seen from the 9704 | T-Beam |
+|---|---|---|---|
+| 12 | V_BATT | power in, 3.6 to 4.5 V, up to about 1 A | DC5 (AXP2101 DCDC5 at 3700 mV, switched by firmware) |
+| 16 | V_IN- | ground | GND; pins 1, 4 and 10 bridged to it on the 9704 header |
+| 14 | RXD | input | TXD, GPIO43 |
+| 13 | TXD | output | RXD, GPIO44 |
+| 7 | I_BTD | output, high when booted | GPIO38, optional |
+| 8 | XMT_G | output, high while transmitting | GPIO39, optional |
+
+Left open: 3 (I_EN), 6 (P_EN), 2, 5, 9, 11 and 15. GPIO38 and GPIO39 are on the T-Beam's expansion header (V3.1 schematic) and the variant does not use them.
+
+Why four wires are enough:
+
+- I_EN has a 270k/430k divider from the supply into a buffer. The schematic note says the board is "default ENABLED": it boots when power arrives and starts a clean shutdown on its supercapacitors when power goes. If I_EN is wired, the host has to drive it.
+- P_EN has a weak pull-down, so the supercapacitor charger is on.
+- Logic input high is 2.0 to 3.6 V and output high 2.9 to 3.4 V, so the ESP32-S3's 3.3 V I/O needs no level shifter.
+- The four ground pins are one net on the schematic. Ground Control asks for all of them to be connected, hence the bridges.
+
+Why V_BATT and not V_IN+: V_IN+ needs 4.0 to 5.3 V and DC5 tops out at 3.7 V. The 9603 never had this problem, because its pin 8 takes 3.0 to 5.4 V (Ground Control's 9603 power supply page). DC5 at 3.7 V is inside the V_BATT range only while the cell is high enough for DC5 to regulate, so the firmware switches the modem off at a cut-off (below). V_BATT has no reverse-polarity protection.
+
+Why not the 9704's USB-C: the 9704 takes its power from USB VBUS (500 mA) and the T-Beam's USB-C is a sink only (5.1 kΩ on CC1 and CC2). A USB link would still need a 5 V source, a USB host stack with an FTDI driver, and the T-Beam's only USB-C port. Ground Control also says the USB and the header share one UART and must never be connected at the same time.
+
+Rules for the firmware:
+
+- UART2 at 230400 8N1 (JSPR).
+- GPIO43 stays high-impedance until the 9704 has booted (Ground Control: no voltage on any input while I_BTD is low) and goes back to high-impedance before DC5 is switched off. Without I_BTD, wait at least 30 s after DC5 comes on: about 25 s of supercapacitor charge on the battery input, then the boot.
+- The modem runs while USB power is present or the cell is above an on-threshold, and DC5 goes off below an off-threshold. Proposed: on at 3.8 V, off at 3.7 V, to be set from bench measurements. The gap keeps a start or stop cycle from being cut short, which Ground Control says can damage the 9704.
+- Below the cut-off the node carries on as a LoRa and Bluetooth node until its own low-battery shut-off.
+- If XMT_G is wired, LoRa holds its transmissions while it is high (the co-location condition on the installation page).
+
+To measure on the bench before the thresholds are fixed:
+
+- DC5 at pin 12 while the supercapacitors charge (the battery input draws up to about 1 A, which is DC5's rating) and during a transmission, with a full cell and with the cell near 3.75 V.
+- On the battery input the red PWR LED stays dark (hardware page). The green RDY LED means booted.
 
 ## Facts that shaped the code, and open questions
 
