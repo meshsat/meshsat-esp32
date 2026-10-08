@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """Bench client for a RockBLOCK 9704 behind the MeshSat node's Iridium BLE pipe (MESHSAT-1507).
 
-Takes the modem by subscribing to TX, brings the 9704 up (API version, SIM, active), then either
-originates one message on a topic and follows it to its final status, or only watches events.
+Takes the modem by subscribing to TX, brings the 9704 up (API version, SIM, active), then
+originates one message on a topic and follows it to its final status, only watches events, or
+cancels messages the modem still holds, by message_id.
 
   jspr_mo.py ADDRESS send "text" [--topic 244] [--timeout 600] [--ref 1]
   jspr_mo.py ADDRESS watch [--timeout 120]
+  jspr_mo.py ADDRESS cancel ID [ID ...] [--topic 244] [--timeout 30]
+
+A cancel is Ground Control's PUT messageOriginateStatus {"action": "cancel"} (rbCancelMessage in
+their RockBLOCK-9704 library), as the Bridge sends it (cmd/jspr-helper, MESHSAT-1282). The modem
+then reports one final status for that id: cancelled, or mo_ack_received when it already went.
 
 JSPR lines are "METHOD target {json}" + CR out, "CODE target {json}" + CR back; 299 lines are
 events. The 9704's parser wants a space after every colon and comma, or it answers 407 BAD_JSON. The payload carries a CRC-16/CCITT (init 0, big-endian) at its end, as the Bridge and
@@ -170,6 +176,22 @@ async def send(p, text, topic, timeout):
     say(f"no final status for message {msg_id} within {timeout} s (it stays queued in the modem)")
 
 
+async def cancel(p, ids, topic, timeout):
+    for msg_id in ids:
+        code, body = await p.request("PUT", "messageOriginateStatus",
+                                     {"topic_id": topic, "message_id": msg_id, "action": "cancel"})
+        say(f"cancel of message {msg_id}: code={code} body={body}")
+    left = set(ids)
+    end = asyncio.get_event_loop().time() + timeout
+    while left and asyncio.get_event_loop().time() < end:
+        code, tgt, ev = await p.event(min(30, end - asyncio.get_event_loop().time()))
+        if tgt == "messageOriginateStatus":
+            say(f"FINAL: message {ev.get('message_id')} {ev.get('final_mo_status')}")
+            left.discard(ev.get("message_id"))
+    if left:
+        say(f"no final status within {timeout} s for: {sorted(left)}")
+
+
 async def watch(p, timeout):
     end = asyncio.get_event_loop().time() + timeout
     while asyncio.get_event_loop().time() < end:
@@ -183,7 +205,10 @@ async def main():
     address, mode = sys.argv[1], sys.argv[2]
     args = sys.argv[3:]
     text = args.pop(0) if mode == "send" and args and not args[0].startswith("--") else ""
-    topic, timeout = RAW_TOPIC, 600 if mode == "send" else 120
+    ids = []
+    while mode == "cancel" and args and not args[0].startswith("--"):
+        ids.append(int(args.pop(0)))
+    topic, timeout = RAW_TOPIC, {"send": 600, "cancel": 30}.get(mode, 120)
     while args:
         flag = args.pop(0)
         if flag == "--topic":
@@ -210,6 +235,8 @@ async def main():
             if await bring_up(p):
                 if mode == "send":
                     await send(p, text, topic, timeout)
+                elif mode == "cancel":
+                    await cancel(p, ids, topic, timeout)
                 else:
                     await watch(p, timeout)
         finally:
