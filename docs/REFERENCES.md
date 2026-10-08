@@ -111,7 +111,7 @@ Decided on 7 October 2026 (MESHSAT-1507). First wired and tried the same evening
 
 | 9704 pin | Name | Direction, seen from the 9704 | T-Beam |
 |---|---|---|---|
-| 12 | V_BATT | power in, 3.6 to 4.5 V, up to about 1 A | DC5 (AXP2101 DCDC5 at 3700 mV, switched by firmware); not enough on the bench, see the note below |
+| 12 | V_BATT | power in, 3.6 to 4.5 V, up to 1100 mA | DC5 (AXP2101 DCDC5 at 3700 mV, switched by firmware); holds on a charged cell, drops on a cell at 3.67 V, see the bench notes below |
 | 16 | V_IN- | ground | GND; pins 1, 4 and 10 bridged to it on the 9704 header |
 | 14 | RXD | input | TXD, GPIO43 |
 | 13 | TXD | output | RXD, GPIO44 |
@@ -142,7 +142,7 @@ Rules for the firmware:
 To measure on the bench before the thresholds are fixed:
 
 - DC5 at pin 12 while the supercapacitors charge (the battery input draws up to about 1 A, which is DC5's rating) and during a transmission, with a full cell and with the cell near 3.75 V.
-- On the battery input the red PWR LED stays dark (hardware page). The green RDY LED means booted.
+- The red PWR LED means "ORed input voltage is present" (hardware page LED table) and is lit on the V_BATT input when the supply is good; the page's Initial Connection text says it does not light on battery input, which contradicts its own table and what the bench shows (8 Oct 2026). The green RDY LED means booted.
 
 Bench, 7 October 2026, 22:45 to 23:15 CEST (MESHSAT-1507, MESHSAT-1382):
 
@@ -151,8 +151,14 @@ Bench, 7 October 2026, 22:45 to 23:15 CEST (MESHSAT-1507, MESHSAT-1382):
 - Three `GET apiVersion {}` runs through the Bluetooth pipe, the exact frame the Bridge's JSPR driver sends, got no byte back while the node's UART was open (meshsat-firmware d5deae772, the `meshsat-tbeam-s3-rockblock9704` build).
 - Reading: DC5 at 3.7 V is 100 mV above the 9704's floor, and its 1 A rating equals the supercapacitor charge current, so the rail sags under the floor and the 9704 runs its clean shutdown. The 9603 has 700 mV of margin on the same pin.
 - Not firmware: the rail is set and enabled at boot with its under-voltage auto-off disabled, and nothing switches it off on a reset. The AXP2101 cannot measure a DCDC output and has no rail above 3.7 V.
-- Next: a multimeter across pins 12 and 16 during a hot plug and during a power-up with the wire left on. Then V_BATT from the cell (header pin VBAT, 3.0 to 4.2 V, no 1 A ceiling; the modem drops out below about 20 percent of charge, and a later I_EN wire gives the firmware a clean off), or a boost.
+- Settled later the same night: see the next note. The multimeter across pins 12 and 16 during the capacitor charge and during a transmission is still the measurement that sets the cut-off thresholds.
 - The 9704's pin names are seen from the modem (14 RXD is its input). The 9603's are seen from the host (6 TXD is its input). So the 9704 is wired crossed by label.
+
+Bench, 8 October 2026, 00:16 to 02:10 CEST (MESHSAT-1507 comments):
+
+- With a fully charged cell and nothing on USB, the 9704 on DC5 ran for 30 minutes and counting, both LEDs on, registered and active. The drop-outs of the evening before were on a cell at 3.67 V (18 percent). So DC5 carries the 9704 on a charged cell and lets go somewhere below about 3.8 V on the cell. The firmware's low-cell cut-off, planned with hysteresis, is not written; its thresholds come from a logging meter across pins 12 and 16 and the PMU's cell reading on one timebase. The full plan, amended four times after an external review, is in the MESHSAT-1507 comments of 8 October: eligibility before any enable including at boot, a modem power owner with explicit states, no automatic power cycle on a failed start, the UART moved off GPIO43/44 because the ESP32-S3 ROM prints on GPIO43 at every reset, I_BTD as the readiness signal, XMT_G left open.
+- Through the Bluetooth pipe from a laptop (`tools/jspr_mo.py`), the modem took `PUT simConfig internal` (SIM present, ICCID ending 5571), `PUT operationalState active`, and a text on the RAW topic 244: `messageOriginate` answered `message_accepted`, the modem asked for the 66-byte segment at once and took it. The message waits in the modem for sky. The JSPR parser wants a space after every colon and comma, answers 407 to a `request_reference` of 206 or more, 405 to a bare CR (which clears the garbage the node's reset text leaves in it), and gives up on a segment not supplied within about 360 ms.
+- Supply budget on paper: Ground Control's battery-input charge limit is about 1000 mA and not designed to be altered; the V_BATT input is specified up to 1100 mA; LILYGO rates DC5 at 1 A. The DC input (V_IN+, 4.0 to 5.3 V) charges at about 460 mA by default, so a 5 V boost into V_IN+ is the lower-current path on the modem side.
 
 ## Facts that shaped the code, and open questions
 
