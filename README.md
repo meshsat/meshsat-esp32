@@ -91,6 +91,7 @@ On v1 the labels are the ones printed beside the pins (LilyGO's pinout image); T
 | A second device pairing without the phone losing its bond | Bench, 2 Oct 2026, a phone and a laptop: the phone reconnected without pairing again. Not tried with three devices |
 | The node recovering when its Bluetooth stops advertising | Bench, 2 Oct 2026, with advertising stopped on purpose: started again within a minute, and the node rebooted itself when that did not help |
 | The node saying why it last went down | Bench, 2 Oct 2026: a flash, a restart and a watchdog reboot each read back at the next start. Low battery, a switch-off, a crash and a brownout were not provoked |
+| A RockBLOCK 9704 behind the node's pipe (compact v2 firmware) | Bench, 8 Oct 2026, from a laptop through the pipe: the modem answered JSPR, took its SIM and API version, registered as active, and accepted a text with its segment. Not transmitted yet: no sky at the desk. It ran on the T-Beam's DC5 rail for 30 min on a full cell with no USB, and dropped out on a cell at 3.67 V; the firmware's low-cell cut-off is not written yet |
 | Battery life | **Not measured** |
 | Range, weather, long-term reliability | **Not tested** |
 | Deployment to a real end user | **Never** |
