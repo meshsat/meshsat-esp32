@@ -118,7 +118,7 @@ Decided on 7 October 2026 (MESHSAT-1507). First wired and tried the same evening
 | 7 | I_BTD | output, high when booted | GPIO38, optional |
 | 8 | XMT_G | output, high while transmitting | GPIO39, optional |
 
-Left open: 3 (I_EN), 6 (P_EN), 2, 5, 9, 11 and 15. GPIO38 and GPIO39 are on the T-Beam's expansion header (V3.1 schematic) and the variant does not use them.
+Left open: 3 (I_EN), 6 (P_EN), 2, 5, 9, 11 and 15. GPIO38 and GPIO39 are on the T-Beam's expansion header (V3.1 schematic) and the variant does not use them. Moving the modem's UART there, off GPIO43 where the ROM prints its boot text at every reset, is parked (owner, 8 Oct 2026). The bare CR after the UART opens clears that text from the modem's parser, and it held through every node reboot on the bench.
 
 Why four wires are enough:
 
