@@ -52,7 +52,7 @@ STATS, byte by byte:
 |---|---|---|
 | 0 | u8 | version, `02` |
 | 1 | u8 | owner, as in STATUS |
-| 2 | u8 | flags: bit 0 a session is in flight, bit 1 a message waits at the gateway, bit 2 the modem answers, bit 3 the incoming buffer is nearly full |
+| 2 | u8 | flags: bit 0 a session is in flight, bit 1 a message waits at the gateway, bit 2 the modem answers, bit 3 the incoming buffer is nearly full, bit 4 the modem speaks JSPR (a RockBLOCK 9704; clear on a 9603 and on a node older than 8 October 2026) |
 | 3 | u8 | signal 0 to 5 as the modem last reported it, `FF` when never read |
 | 4 | u32 | age of that signal reading in seconds, `FFFFFFFF` when never read |
 | 8 | u32 | satellite sessions since boot, by any owner |
@@ -80,7 +80,7 @@ STATS is rebuilt every 2 seconds and a read always returns the current value. A 
 
 PASS, written with response: `01`, then the number of windows (at most 8), then for each window a u32 start as Unix seconds, a u16 duration in seconds and a u8 peak elevation in degrees, all little-endian. A write replaces the node's list. The node's own routing then opens routine sessions only inside a window; a ring alert or a message queued at the gateway still goes at once, and a node that never received a list is not held back. Writes are accepted from any client on the service, whoever owns the modem.
 
-STATUS carries the flags byte and the signal byte after the owner since version 2. Clients accept a STATUS of 2 or 4 bytes and read only what is there.
+STATUS carries the flags byte and the signal byte after the owner since version 2. Clients accept a STATUS of 2 or 4 bytes and read only what is there, and they ignore flag bits they do not know: bit 4 was added on 8 October 2026 so a client can pick its 9603 or 9704 driver from the node's own word instead of a setting.
 
 ## Security
 
