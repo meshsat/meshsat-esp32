@@ -9,9 +9,5 @@
 # Local secrets
 .env
 
-# Claude Code files are local-only, never committed
-CLAUDE.md
-.claude/
-
 # Python bytecode
 __pycache__/
