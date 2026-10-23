@@ -107,20 +107,21 @@ The firmware drives them with **UART1**, routed through the GPIO matrix. See "UA
 
 ### RockBLOCK 9704 on the T-Beam Supreme (compact v2)
 
-Decided on 7 October 2026 (MESHSAT-1507). First wired and tried the same evening: see the bench note at the end of this section.
+Decided on 7 October 2026 (MESHSAT-1507) and first wired and tried the same evening; see the bench notes at the end of this section. **Changed on 23 October 2026 (owner's ruling, MESHSAT-1507; firmware MESHSAT-1657): the modem runs from the cell on the T-Beam's VBAT header pin, not from DC5, and I_EN and I_BTD are wired. Six wires.** The table gives the current assignment; the DC5 rows of the bench notes below are history.
 
 | 9704 pin | Name | Direction, seen from the 9704 | T-Beam |
 |---|---|---|---|
-| 12 | V_BATT | power in, 3.6 to 4.5 V, up to 1100 mA | DC5 (AXP2101 DCDC5 at 3700 mV, switched by firmware); holds on a charged cell, drops on a cell at 3.67 V, see the bench notes below |
+| 12 | V_BATT | power in, 3.6 to 4.5 V, up to 1100 mA | VBAT (PM1 pin 1, printed VBAT): the cell's positive, behind the board's battery protection (DW06D in the cell return, over-current 2.4 to 3.6 A, short-circuit cut). Until 23 Oct 2026 DC5 (AXP2101 DCDC5 at 3700 mV, switched by firmware), which held on a charged cell and dropped the modem on a half-charged one, see the bench notes below |
 | 16 | V_IN- | ground | GND; pins 1, 4 and 10 bridged to it on the 9704 header |
 | 14 | RXD | input | TXD, GPIO43 |
 | 13 | TXD | output | RXD, GPIO44 |
-| 7 | I_BTD | output, high when booted | GPIO38, optional |
-| 8 | XMT_G | output, high while transmitting | GPIO39, optional |
+| 3 | I_EN | input, pulled up on the 9704 (270k/430k divider) | IO21, GPIO21 (PN1 pin 12), since 23 Oct 2026; left open before. The modem boots as soon as the cell goes in and stays up until the firmware drives it low |
+| 7 | I_BTD | output, high when booted | IO39, GPIO39 (PN1 pin 7), since 23 Oct 2026; the CE file's assignment of 10 Oct (GPIO38 is the panel button) |
+| 8 | XMT_G | output, high while transmitting | not wired (GPIO39 was pencilled for it on 7 Oct; it is I_BTD's now) |
 
-Left open: 3 (I_EN), 6 (P_EN), 2, 5, 9, 11 and 15. GPIO38 and GPIO39 are on the T-Beam's expansion header (V3.1 schematic) and the variant does not use them. Moving the modem's UART there, off GPIO43 where the ROM prints its boot text at every reset, is parked (owner, 8 Oct 2026). The bare CR after the UART opens clears that text from the modem's parser, and it held through every node reboot on the bench.
+Left open: 2, 5, 6 (P_EN), 8, 9, 11 and 15. GPIO21, GPIO38, GPIO39 and GPIO48 are the four free non-strapping GPIOs on the T-Beam's expansion header (V3.1 schematic, PN1); the current build does not drive IO21 or read IO39 yet (MESHSAT-1657). Moving the modem's UART there, off GPIO43 where the ROM prints its boot text at every reset, is parked (owner, 8 Oct 2026). The bare CR after the UART opens clears that text from the modem's parser, and it held through every node reboot on the bench.
 
-Why four wires are enough:
+Why four wires were enough on the bench until 23 October 2026:
 
 - I_EN has a 270k/430k divider from the supply into a buffer. The schematic note says the board is "default ENABLED": it boots when power arrives and starts a clean shutdown on its supercapacitors when power goes. If I_EN is wired, the host has to drive it.
 - P_EN has a weak pull-down, so the supercapacitor charger is on.
@@ -129,13 +130,15 @@ Why four wires are enough:
 
 Why V_BATT and not V_IN+: V_IN+ needs 4.0 to 5.3 V and DC5 tops out at 3.7 V. The 9603 never had this problem, because its pin 8 takes 3.0 to 5.4 V (Ground Control's 9603 power supply page). DC5 at 3.7 V is inside the V_BATT range only while the cell is high enough for DC5 to regulate, so the firmware switches the modem off at a cut-off (below). V_BATT has no reverse-polarity protection.
 
+**Why the cell and not DC5 (23 October 2026):** a buck cannot give more than its input minus its own drop, and the 9704's battery input pulls about 1 A for up to 25 s while its supercapacitors charge (Ground Control: the ~1000 mA battery-input limit is not designed to be altered). With the cell at half charge, about 3.75 V open circuit (Samsung's own 20 to 60 percent band is 3.6 to 3.9 V), DC5 starts under its setting, sags further under that load, falls below the 9704's 3.6 V floor and the modem runs its clean shutdown. On the full cell DC5 had headroom and held. Fed from the cell itself the modem only sees the cell's and the wire's sag, so it holds down to the modem's own floor, about the bottom fifth of the cell instead of about half. The owner saw exactly this on his bench with two cells and ruled for the cell. The VBAT header pin is the cell's positive behind the board's DW06D protection in the cell return, so a harness short is cut. Costs: no hard power cut (the modem's off-state draw from V_BATT with I_EN low is to be measured), V_BATT still has no reverse-polarity protection, and the AXP2101's gauge does not see current drawn ahead of its battery switch. **Never tie the cell and DC5 together on V_BATT:** the AXP2101 turns the whole PMIC off when a DCDC output reads 120 percent of its setting (register 23, on by default), 4.44 V for DC5 at 3.7 V, and a charging cell reaches 4.2 V. A 5 V boost from DC5 into V_IN+ was the fallback and was not chosen.
+
 Why not the 9704's USB-C: the 9704 takes its power from USB VBUS (500 mA) and the T-Beam's USB-C is a sink only (5.1 kΩ on CC1 and CC2). A USB link would still need a 5 V source, a USB host stack with an FTDI driver, and the T-Beam's only USB-C port. Ground Control also says the USB and the header share one UART and must never be connected at the same time.
 
 Rules for the firmware:
 
 - UART2 at 230400 8N1 (JSPR).
-- GPIO43 stays high-impedance until the 9704 has booted (Ground Control: no voltage on any input while I_BTD is low) and goes back to high-impedance before DC5 is switched off. Without I_BTD, wait at least 30 s after DC5 comes on: about 25 s of supercapacitor charge on the battery input, then the boot.
-- The modem runs while USB power is present or the cell is above an on-threshold, and DC5 goes off below an off-threshold. Proposed: on at 3.8 V, off at 3.7 V, to be set from bench measurements. The gap keeps a start or stop cycle from being cut short, which Ground Control says can damage the 9704.
+- GPIO43 stays high-impedance until the 9704 has booted (Ground Control: no voltage on any input while I_BTD is low) and goes back to high-impedance before I_EN is driven low. With I_BTD wired (since 23 Oct 2026) the wait is on the pin: I_EN high, wait for I_BTD high, open the UART; close the UART, I_EN low, wait for I_BTD low. Never flip I_EN before I_BTD confirms. Without I_BTD (the DC5 build), wait at least 30 s after the supply comes on: about 25 s of supercapacitor charge on the battery input, then the boot.
+- The modem runs while USB power is present or the cell is above an on-threshold, and is shut down below an off-threshold. The DC5 build used on at 3.8 V, off at 3.7 V. With the cell on VBAT the thresholds move near the modem's own floor: proposed off about 3.65 V, on about 3.75 V, set from a reading at pin 12 under the charge-up load (MESHSAT-1657). The gap keeps a start or stop cycle from being cut short, which Ground Control says can damage the 9704.
 - Below the cut-off the node carries on as a LoRa and Bluetooth node until its own low-battery shut-off.
 - If XMT_G is wired, LoRa holds its transmissions while it is high (the co-location condition on the installation page).
 
@@ -161,6 +164,11 @@ Bench, 8 October 2026, 00:16 to 02:10 CEST (MESHSAT-1507 comments):
 - With a fully charged cell and nothing on USB, the 9704 on DC5 ran from about 00:15 to at least 02:03 (1 h 48 min, verified through the pipe: active, 31 C, API version still set, so no reboot in between), both LEDs on, registered and active. The drop-outs of the evening before were on a cell at 3.67 V (18 percent). So DC5 carries the 9704 on a charged cell and lets go somewhere below about 3.8 V on the cell. The firmware's low-cell cut-off has been in meshsat-firmware since ad292972f the same morning: on at 3.8 V, off at 3.7 V, with hysteresis; see "What loads the supply" above for why those two figures stand. The full plan, amended four times after an external review, is in the MESHSAT-1507 comments of 8 October: eligibility before any enable including at boot, a modem power owner with explicit states, no automatic power cycle on a failed start, the UART moved off GPIO43/44 because the ESP32-S3 ROM prints on GPIO43 at every reset, I_BTD as the readiness signal, XMT_G left open.
 - Through the Bluetooth pipe from a laptop (`tools/jspr_mo.py`), the modem took `PUT simConfig internal` (SIM present, ICCID ending 5571), `PUT operationalState active`, and a text on the RAW topic 244: `messageOriginate` answered `message_accepted`, the modem asked for the 66-byte segment at once and took it. The message waits in the modem for sky. The JSPR parser wants a space after every colon and comma, answers 407 to a `request_reference` of 206 or more, 405 to a bare CR (which clears the garbage the node's reset text leaves in it), and gives up on a segment not supplied within about 360 ms.
 - Supply budget on paper: Ground Control's battery-input charge limit is about 1000 mA and not designed to be altered; the V_BATT input is specified up to 1100 mA; LILYGO rates DC5 at 1 A. The DC input (V_IN+, 4.0 to 5.3 V) charges at about 460 mA by default, so a 5 V boost into V_IN+ is the lower-current path on the modem side.
+
+Bench, 16 and 23 October 2026 (owner, reported 23 Oct; MESHSAT-1507 comments):
+
+- Two Samsung 35E cells, one full, one at half or less. On the full cell the four wires ran the 9704. On the half cell the 9704 did not stay up on DC5, and it ran once a fifth wire from the T-Beam's VBAT header pin reached pin 12 as well. The cell did the work; DC5 sat at the cell voltage as a passenger. That configuration is not a design (see above) and the DC5 wire goes.
+- The ruling that followed the same day is at the top of this section. The harness sheet handed to the person soldering it shows the six wires by the names printed on the boards.
 
 ## Facts that shaped the code, and open questions
 
