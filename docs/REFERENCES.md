@@ -119,7 +119,7 @@ Decided on 7 October 2026 (MESHSAT-1507) and first wired and tried the same even
 | 7 | I_BTD | output, high when booted | IO39, GPIO39 (PN1 pin 7), since 23 Oct 2026; the CE file's assignment of 10 Oct (GPIO38 is the panel button) |
 | 8 | XMT_G | output, high while transmitting | not wired (GPIO39 was pencilled for it on 7 Oct; it is I_BTD's now) |
 
-Left open: 2, 5, 6 (P_EN), 8, 9, 11 and 15. GPIO21, GPIO38, GPIO39 and GPIO48 are the four free non-strapping GPIOs on the T-Beam's expansion header (V3.1 schematic, PN1); the current build does not drive IO21 or read IO39 yet (MESHSAT-1657). Moving the modem's UART there, off GPIO43 where the ROM prints its boot text at every reset, is parked (owner, 8 Oct 2026). The bare CR after the UART opens clears that text from the modem's parser, and it held through every node reboot on the bench.
+Left open: 2, 5, 6 (P_EN), 8, 9, 11 and 15. GPIO21, GPIO38, GPIO39 and GPIO48 are the four free non-strapping GPIOs on the T-Beam's expansion header (V3.1 schematic, PN1); the build drives IO21 and reads IO39 since meshsat-firmware `c695a589d` (24 Oct 2026, MESHSAT-1657); before that it did neither. Moving the modem's UART there, off GPIO43 where the ROM prints its boot text at every reset, is parked (owner, 8 Oct 2026). The bare CR after the UART opens clears that text from the modem's parser, and it held through every node reboot on the bench.
 
 Why four wires were enough on the bench until 23 October 2026:
 
@@ -138,7 +138,7 @@ Rules for the firmware:
 
 - UART2 at 230400 8N1 (JSPR).
 - GPIO43 stays high-impedance until the 9704 has booted (Ground Control: no voltage on any input while I_BTD is low) and goes back to high-impedance before I_EN is driven low. With I_BTD wired (since 23 Oct 2026) the wait is on the pin: I_EN high, wait for I_BTD high, open the UART; close the UART, I_EN low, wait for I_BTD low. Never flip I_EN before I_BTD confirms. Without I_BTD (the DC5 build), wait at least 30 s after the supply comes on: about 25 s of supercapacitor charge on the battery input, then the boot.
-- The modem runs while USB power is present or the cell is above an on-threshold, and is shut down below an off-threshold. The DC5 build used on at 3.8 V, off at 3.7 V. With the cell on VBAT the thresholds move near the modem's own floor: proposed off about 3.65 V, on about 3.75 V, set from a reading at pin 12 under the charge-up load (MESHSAT-1657). The gap keeps a start or stop cycle from being cut short, which Ground Control says can damage the 9704.
+- The modem runs while USB power is present or the cell is above an on-threshold, and is shut down below an off-threshold. The DC5 build used on at 3.8 V, off at 3.7 V. With the cell on VBAT the thresholds move near the modem's own floor: the build uses off under 3.65 V and on above 3.75 V since meshsat-firmware `c695a589d` (24 Oct 2026, MESHSAT-1657); the reading at pin 12 under the charge-up load (CE test P1) still has to confirm them. The gap keeps a start or stop cycle from being cut short, which Ground Control says can damage the 9704.
 - Below the cut-off the node carries on as a LoRa and Bluetooth node until its own low-battery shut-off.
 - If XMT_G is wired, LoRa holds its transmissions while it is high (the co-location condition on the installation page).
 
