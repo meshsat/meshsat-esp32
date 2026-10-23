@@ -170,6 +170,14 @@ Bench, 16 and 23 October 2026 (owner, reported 23 Oct; MESHSAT-1507 comments):
 - Two Samsung 35E cells, one full, one at half or less. On the full cell the four wires ran the 9704. On the half cell the 9704 did not stay up on DC5, and it ran once a fifth wire from the T-Beam's VBAT header pin reached pin 12 as well. The cell did the work; DC5 sat at the cell voltage as a passenger. That configuration is not a design (see above) and the DC5 wire goes.
 - The ruling that followed the same day is at the top of this section. The harness sheet handed to the person soldering it shows the six wires by the names printed on the boards.
 
+Bench, 24 October 2026, 00:45 to 01:03 CEST (MESHSAT-1657 and MESHSAT-1507 comments; MSC-2 unit 0001, `!f6f9417c`, the second compact v2 T-Beam Supreme, six wires soldered, cell in, indoors with no sky):
+
+- meshsat-firmware `c695a589d` (build `2.8.0.c695a58`): the first build that drives I_EN (GPIO21) and reads I_BTD (GPIO39) and does not touch DC5. Flashed app-only; esptool 5.2.0's own reset put the MeshSat firmware into the bootloader, no button (the stock LILYGO firmware is the one that refuses).
+- Start: I_EN high, I_BTD read high, UART opened, the modem answered JSPR; at 60 s the node took the modem, set API 1.8.0, the internal SIM and the operational state active, and routed `i9603`. Constellation not visible, as expected indoors.
+- A text on `i9603` from the node's own serial was in the modem in 210 ms (message 1, "goes out when the sky is there"). A preset sent from the T-Watch S3 Plus on `i9603` reached the node over LoRa (RSSI -15) and was in the modem within half a second (message 2), no phone on the pipe: MESHSAT-1507's test 1 up to the modem's queue.
+- Warm reboot: the boot log read "I_EN was high before the reset; I_EN high, I_BTD high, the modem has booted" and the modem came back "up and active" with no restart: the pad hold and the RTC memory worked.
+- Not seen yet: the shutdown path (I_EN low, I_BTD low, minimum off, restart) needs a cell under 3.65 V or a bench supply; the pin-12 reading under the charge-up load (P1) and the off-state draw with I_EN low need a meter; the satellite leg needs sky.
+
 ## Facts that shaped the code, and open questions
 
 ### Serial link
