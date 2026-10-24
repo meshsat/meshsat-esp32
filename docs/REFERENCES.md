@@ -179,6 +179,24 @@ Bench, 24 October 2026, 00:45 to 01:03 CEST (MESHSAT-1657 and MESHSAT-1507 comme
 - Since `e089dc71a` the same night the node's own routing takes the modem as soon as the pipe has heard it (13 s after boot on unit 0001, against a fixed 60 s before); `fc4f3bbae` adds the screen words (Mesh mode / App mode / Changing mode) and a "N queued" count on line 1: texts waiting on the node plus messages the 9704 holds, counted by the pipe from the modem's `messageOriginate` and `messageOriginateStatus` answers whoever holds the modem, kept across a software reset, 0 after a power-on or a flash (the node cannot ask the modem what it holds).
 - Not seen yet: the shutdown path (I_EN low, I_BTD low, minimum off, restart) needs a cell under 3.65 V or a bench supply; the pin-12 reading under the charge-up load (P1) and the off-state draw with I_EN low need a meter; the satellite leg needs sky.
 
+### Panel button on the T-Beam Supreme (compact v2, GPIO38)
+
+The CE technical file's panel button (section 4.1): one leg to GPIO38 (PN1 pin 8), the other to GND (PN1 pin 3); the firmware turns on GPIO38's internal pull-up, so pressed reads low. meshsat-firmware arms the satellite with it in the `meshsat-tbeam-s3-rockblock9704` build (MESHSAT-1667, logic in `src/meshsat/SatelliteArming.h`, host test in `test/meshsat_host/`).
+
+| Switch | Fitted on | What it does |
+|---|---|---|
+| RUNCCI-YUN DS-425A, 12 mm, self-latching, not sealed | the two prototypes (owner's buttons of 24 Oct 2026) | pushed in: armed; out: disarmed |
+| 12 mm IP67 momentary | the sealed unit (CE file BOM) | a press arms, the next press disarms |
+
+The prototypes carry a latching switch because it was on hand and fits the 12 mm hole; it is not sealed, so it stays off a unit that must be IP67. No firmware setting tells the two apart:
+
+- Nothing happens until the first press a unit has ever seen (kept in NVS, `meshsat/btnSeen`). A unit with no button wired, or one never pressed, runs the modem as before the button (MESHSAT-1657). From that first press on, the modem runs only while armed, and every reset starts disarmed.
+- A press edge debounced for 50 ms arms. A pin held down 10 s or more is a latching switch, kept in NVS (`meshsat/btnKind`); from then on its release disarms. Until then a press toggles, which is what a momentary switch does. A latching switch that is pushed in and out again within 10 s on its very first use is taken for a momentary one until it is next held in; the timeouts below bound that.
+- Arming happens only on a press edge, never on a level: a latching switch left in after a timeout, a low cell or a reset arms again only once it has been released and pushed in.
+- While armed, 15 minutes without satellite traffic (a JSPR `messageOriginate` or `messageTerminate` line) and 30 minutes after arming disarm by themselves (CE file section 2, Shutdown pending). Without USB, a cell under the supply's on-threshold (3.75 V) refuses arming, and a cell low enough to stop the modem disarms it, so recovery never re-arms (R13).
+- Disarming runs Ground Control's stop sequence (UART closed, I_EN low, held low until I_BTD reads low); a disarm during a start waits for I_BTD high first. Every edge and event is in the log and on the screen ("Satellite armed", "Disarmed: 15 min idle" and so on; the home screen's big line says "Disarmed").
+- Not in this build: the quick message on a press (CE file section 2, a momentary switch only) and arming from the app.
+
 ## Facts that shaped the code, and open questions
 
 ### Serial link
