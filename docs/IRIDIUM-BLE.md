@@ -45,6 +45,7 @@ Two more characteristics on the same service. A client that ignores them keeps w
 |---|---|---|---|
 | STATS | `9c22cf07-2256-4fc2-b6ee-ab0ceb12198d` | read, notify | 52 bytes of node health, little-endian, notified on change and at most every 2 s |
 | PASS | `5c1000e8-f411-4f3d-a4c9-5ee0610a8e66` | write | pass windows from the client, up to eight |
+| CONTROL | `d6a8a903-6af1-4530-ab3d-49c39b636e04` | write | the owner's switches for the node's status LED and screen (since 24 October 2026) |
 
 STATS, byte by byte:
 
@@ -52,7 +53,7 @@ STATS, byte by byte:
 |---|---|---|
 | 0 | u8 | version, `02` |
 | 1 | u8 | owner, as in STATUS |
-| 2 | u8 | flags: bit 0 a session is in flight, bit 1 a message waits at the gateway, bit 2 the modem answers, bit 3 the incoming buffer is nearly full, bit 4 the modem speaks JSPR (a RockBLOCK 9704; clear on a 9603 and on a node older than 8 October 2026) |
+| 2 | u8 | flags: bit 0 a session is in flight, bit 1 a message waits at the gateway, bit 2 the modem answers, bit 3 the incoming buffer is nearly full, bit 4 the modem speaks JSPR (a RockBLOCK 9704; clear on a 9603 and on a node older than 8 October 2026), bit 5 the owner switched the status LED off, bit 6 the owner switched the screen off (bits 5 and 6 since 24 October 2026) |
 | 3 | u8 | signal 0 to 5 as the modem last reported it, `FF` when never read |
 | 4 | u32 | age of that signal reading in seconds, `FFFFFFFF` when never read |
 | 8 | u32 | satellite sessions since boot, by any owner |
@@ -82,12 +83,14 @@ PASS, written with response: `01`, then the number of windows (at most 8), then 
 
 STATUS carries the flags byte and the signal byte after the owner since version 2. Clients accept a STATUS of 2 or 4 bytes and read only what is there, and they ignore flag bits they do not know: bit 4 was added on 8 October 2026 so a client can pick its 9603 or 9704 driver from the node's own word instead of a setting.
 
+CONTROL, written with response: pairs of a switch byte and a value byte, `01` the status LED, `02` the screen, value `00` on and `01` off; several pairs may go in one write, anything else is ignored. The node keeps both switches across restarts and reports them in STATUS flags bits 5 and 6, which is where a client reads them back. With the LED off the node's satellite-state logic keeps running and shows again when the LED is switched on. With the screen off the display stays dark through messages and banners until the switch goes back on or someone presses the node's own button, so a node is never left dark without a phone. A node older than 24 October 2026 has no CONTROL characteristic.
+
 ## Security
 
-If the node's Bluetooth pairing mode is anything other than "no PIN", all five characteristics need an encrypted, authenticated link: the same bond as the Meshtastic service. With "no PIN" they are open, like the Meshtastic service.
+If the node's Bluetooth pairing mode is anything other than "no PIN", all six characteristics need an encrypted, authenticated link: the same bond as the Meshtastic service. With "no PIN" they are open, like the Meshtastic service.
 
 ## Changes
 
-Any change to this contract bumps the version byte in STATUS, and the MeshSat Android app is updated first, with the iOS app following it. Additions that a version 1 client can ignore, like STATS and PASS, ship before the bump.
+Any change to this contract bumps the version byte in STATUS, and the MeshSat Android app is updated first, with the iOS app following it. Additions that a version 1 client can ignore, like STATS, PASS and CONTROL, ship before the bump.
 
 Adding or removing a characteristic changes the attribute table, and a bonded phone keeps a cached copy of the old one. For the twenty boots after such a change the node indicates Service Changed to every authenticated peer as soon as the link is up, so the phone discovers the table again. A client may also drop its own cache when the service comes back without a characteristic it expects.
