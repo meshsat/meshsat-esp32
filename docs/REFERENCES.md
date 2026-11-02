@@ -213,6 +213,8 @@ While the satellite is armed the node is a beacon (`src/meshsat/SatBeacon.h`, ho
 - After the switch goes off the modem stays up for the last message until the modem reports it settled, 3 minutes at most, then shuts down as above. Switched off before any beacon message reached the modem, nothing is sent at all (a flick of the switch is no alarm). A cell low enough to stop the modem ends the beacon with nothing more sent.
 - A beacon message goes before a phone: a phone holding the modem lends it to the node once it has written nothing for 3 s, and gets it back once the message is in the modem.
 - With the 30 minute limit one switch-on sends at most four messages (on, 10 min, 20 min, off), one satellite credit each.
+- Every flip of the switch, on or off, wakes the screen as a press on the unit's own button does, and brings back a screen switched off from the phone. Every beacon message wakes the screen too, unless it was switched off from the phone.
+- The first message waits for the 9704's own `299 operationalState` "active" (3 s at most) after the node sets it active: sent before that, the modem answers 418 (operation not possible in its current state; unit 0001, 2 Nov 2026). A 418 is retried after 3 s and uses up no attempt; five in a row and the node sets the modem up again.
 
 ## Facts that shaped the code, and open questions
 
