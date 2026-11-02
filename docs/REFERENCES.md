@@ -197,6 +197,15 @@ The prototypes carry a latching switch because it was on hand and fits the 12 mm
 - Disarming runs Ground Control's stop sequence (UART closed, I_EN low, held low until I_BTD reads low); a disarm during a start waits for I_BTD high first. Every edge and event is in the log and on the screen ("Satellite beacon on", "Beacon off: 15 min idle" and so on; the home screen's big line says "SAT BEACON ON" or "SAT BEACON OFF").
 - Not in this build: arming from the app.
 
+#### Charging temperature (owner, 2 Nov 2026)
+
+The T-Beam S3 Core has no thermistor on its cell: LILYGO left the AXP2101's battery temperature input (TS) unconnected, and the firmware switches it off (`disableTSPinMeasure()` in `src/Power.cpp`, with LILYGO's comment that leaving it on causes abnormal charging). Unguarded, the charger charges at 500 mA to 4,2 V whatever the cell's temperature. The 9704 build guards it in firmware, with no part added (`src/meshsat/ChargeGuard.h`, `ChargeGuardThread.cpp`, host test `charge_guard_test.cpp`, MESHSAT-1774):
+
+- Charging is switched off at the AXP2101 when the guard starts and on only while every fresh reading is inside 10 to 35 C: the charger chip's own temperature (AXP2101 die, read while it does not charge; while charging it pauses 45 s every 10 minutes for the reading) and, while the modem runs, the 9704's board temperature (`board_temp` of JSPR `GET hwInfo`, asked every 5 minutes while the node holds the modem). The ESP32-S3's own temperature is not used: the chip runs well above the room.
+- The cell lags the boards: after any reading under 10 C charging waits 60 minutes, after any over 35 C 30 minutes, from the last such reading. No fresh charger reading (15 minutes), no charging.
+- The window sits 10 C inside the cell's 0 to 45 C charging range on both sides; that margin was chosen, not measured against the cell (owner's decision; no cell sensor, no bench run). Left open: the charger charges on its own from power-up until the guard starts (P5).
+- Log lines `MeshSat charge guard: ...`; a banner ("Charging paused: too hot", "Charging resumed") only while USB is in.
+
 #### The satellite beacon (owner, 2 Nov 2026)
 
 While the satellite is armed the node is a beacon (`src/meshsat/SatBeacon.h`, host test `test/meshsat_host/sat_beacon_test.cpp`). It is never called SOS: nobody staffs a rescue desk behind it, and the message goes to a person the owner of the unit chose.
