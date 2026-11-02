@@ -43,7 +43,7 @@ Two more characteristics on the same service. A client that ignores them keeps w
 
 | Characteristic | UUID | Properties | Carries |
 |---|---|---|---|
-| STATS | `9c22cf07-2256-4fc2-b6ee-ab0ceb12198d` | read, notify | 52 bytes of node health, little-endian, notified on change and at most every 2 s |
+| STATS | `9c22cf07-2256-4fc2-b6ee-ab0ceb12198d` | read, notify | 64 bytes of node health, little-endian, notified on change and at most every 2 s (52 before 2 November 2026) |
 | PASS | `5c1000e8-f411-4f3d-a4c9-5ee0610a8e66` | write | pass windows from the client, up to eight |
 | CONTROL | `d6a8a903-6af1-4530-ab3d-49c39b636e04` | write | the owner's switches for the node's status LED and screen (since 24 October 2026) |
 
@@ -53,7 +53,7 @@ STATS, byte by byte:
 |---|---|---|
 | 0 | u8 | version, `02` |
 | 1 | u8 | owner, as in STATUS |
-| 2 | u8 | flags: bit 0 a session is in flight, bit 1 a message waits at the gateway, bit 2 the modem answers, bit 3 the incoming buffer is nearly full, bit 4 the modem speaks JSPR (a RockBLOCK 9704; clear on a 9603 and on a node older than 8 October 2026), bit 5 the owner switched the status LED off, bit 6 the owner switched the screen off (bits 5 and 6 since 24 October 2026) |
+| 2 | u8 | flags: bit 0 a session is in flight, bit 1 a message waits at the gateway, bit 2 the modem answers, bit 3 the incoming buffer is nearly full, bit 4 the modem speaks JSPR (a RockBLOCK 9704; clear on a 9603 and on a node older than 8 October 2026), bit 5 the owner switched the status LED off, bit 6 the owner switched the screen off (bits 5 and 6 since 24 October 2026), bit 7 the satellite beacon is on (since 2 November 2026) |
 | 3 | u8 | signal 0 to 5 as the modem last reported it, `FF` when never read |
 | 4 | u32 | age of that signal reading in seconds, `FFFFFFFF` when never read |
 | 8 | u32 | satellite sessions since boot, by any owner |
@@ -72,8 +72,16 @@ STATS, byte by byte:
 | 49 | u8 | the node's daily cap |
 | 50 | u8 | why the node's previous run ended, see below. Zero on firmware before 2 October 2026 |
 | 51 | u8 | battery at that stop in units of 100 mV, when the stop was planned; zero when not recorded |
+| 52 | u8 | the satellite beacon: `0` not in use (the node's panel switch was never pressed, or a node without one), `1` off, `2` on, `3` off and sending its last message |
+| 53 | u8 | why the beacon last went off: `0` not since the node started, `1` the switch, `2` 15 minutes without satellite traffic, `3` the 30 minute limit, `4` the cell too low for the modem, `5` switched off before any of its messages reached the modem, so nothing was sent |
+| 54 | u16 | beacon messages the modem has taken since the node started |
+| 56 | u32 | the uptime in seconds when the beacon last went on, `FFFFFFFF` when it has not since the node started |
+| 60 | u16 | seconds between the beacon's position messages (600) |
+| 62 | u16 | seconds the beacon stays on at most (1800) |
 
 Why the previous run ended: `0` not recorded, `1` power loss or reset (the cell was pulled or collapsed, the reset button, or the reset a flashing tool ends with; the chip reports them alike), `2` a reset over USB while the node ran, `3` a restart the firmware asked for, `4` the Bluetooth watchdog, `5` crash, `6` watchdog timer, `7` brownout, `8` low battery (the node shut itself off), `9` switched off, `10` sleep. A client shows a value it does not know as its number.
+
+Bytes 52 to 63 since 2 November 2026: a client accepts a STATS of 52 bytes or more and reads only what is there. While the beacon is on, its next position message is due at the uptime of byte 56 plus a whole number of intervals, and it goes off by itself at that uptime plus byte 62 at the latest. None of these fields moves on its own, so they add no notifications.
 
 The signal byte is information for a screen. It is never a reason to hold a send: this modem has sent and received at 0.
 
