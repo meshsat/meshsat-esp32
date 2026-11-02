@@ -194,8 +194,25 @@ The prototypes carry a latching switch because it was on hand and fits the 12 mm
 - A press edge debounced for 50 ms arms. A pin held down 10 s or more is a latching switch, kept in NVS (`meshsat/btnKind`); from then on its release disarms. Until then a press toggles, which is what a momentary switch does. A latching switch that is pushed in and out again within 10 s on its very first use is taken for a momentary one until it is next held in; the timeouts below bound that.
 - Arming happens only on a press edge, never on a level: a latching switch left in after a timeout, a low cell or a reset arms again only once it has been released and pushed in.
 - While armed, 15 minutes without satellite traffic (a JSPR `messageOriginate` or `messageTerminate` line) and 30 minutes after arming disarm by themselves (CE file section 2, Shutdown pending). Without USB, a cell under the supply's on-threshold (3.75 V) refuses arming, and a cell low enough to stop the modem disarms it, so recovery never re-arms (R13).
-- Disarming runs Ground Control's stop sequence (UART closed, I_EN low, held low until I_BTD reads low); a disarm during a start waits for I_BTD high first. Every edge and event is in the log and on the screen ("Satellite armed", "Disarmed: 15 min idle" and so on; the home screen's big line says "Disarmed").
-- Not in this build: the quick message on a press (CE file section 2, a momentary switch only) and arming from the app.
+- Disarming runs Ground Control's stop sequence (UART closed, I_EN low, held low until I_BTD reads low); a disarm during a start waits for I_BTD high first. Every edge and event is in the log and on the screen ("Satellite beacon on", "Beacon off: 15 min idle" and so on; the home screen's big line says "SAT BEACON ON" or "SAT BEACON OFF").
+- Not in this build: arming from the app.
+
+#### The satellite beacon (owner, 2 Nov 2026)
+
+While the satellite is armed the node is a beacon (`src/meshsat/SatBeacon.h`, host test `test/meshsat_host/sat_beacon_test.cpp`). It is never called SOS: nobody staffs a rescue desk behind it, and the message goes to a person the owner of the unit chose.
+
+| When | Message over satellite |
+|---|---|
+| The switch goes on | `@beacon BEACON ACTIVATED https://maps.google.com/?q=<lat>,<lon> GPS fix now` |
+| Every 10 minutes while on, counted from the switch | `@beacon BEACON https://maps.google.com/?q=<lat>,<lon> GPS fix 2 min old` |
+| Off by the switch, the 15 minute idle or the 30 minute limit | `@beacon BEACON OFF: switched off https://...` (or `15 min idle`, `30 min limit`) |
+| No fix since the node started | `... , no GPS fix yet` in place of the link |
+
+- The position is the last fix the node has seen since it started, with its age; Meshtastic zeroes its own position when the GPS loses lock, so the node keeps the last one itself. A fixed position set by hand says `position set by hand`. Cloudloop also hands the Hub the modem's own rough position with every message.
+- The Hub's "@" lane (meshsat-hub `docs/bridge-hub-protocol.md`, "The @ lane") sends the text after `@beacon` by SMS to the tenant's contact named `beacon` (spaces and case ignored; its primary address must be an SMS number), from the tenant's own SMS account, as `<device label>: <text>`. No number is in the firmware; the contact is changed on the Hub's Contacts page. A tenant without that contact gets nothing sent and the node no notice.
+- After the switch goes off the modem stays up for the last message until the modem reports it settled, 3 minutes at most, then shuts down as above. Switched off before any beacon message reached the modem, nothing is sent at all (a flick of the switch is no alarm). A cell low enough to stop the modem ends the beacon with nothing more sent.
+- A beacon message goes before a phone: a phone holding the modem lends it to the node once it has written nothing for 3 s, and gets it back once the message is in the modem.
+- With the 30 minute limit one switch-on sends at most four messages (on, 10 min, 20 min, off), one satellite credit each.
 
 ## Facts that shaped the code, and open questions
 
