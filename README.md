@@ -117,6 +117,10 @@ The node's product firmware lives in [meshsat-firmware](https://github.com/meshs
 - **[MeshSat Field Kit](https://github.com/meshsat/meshsat-fieldkit)**, the hardware for the larger field kits
 - **[MeshSat Hub](https://hub.meshsat.net)**, multi-tenant fleet management
 
+## Mission and use policy
+
+MeshSat does not work with any organisation that develops, produces, integrates or operates weapon systems, and provides nothing for use in one. The licence below is unchanged: the policy covers whom we work with, not what you may do with the code. Read the [MeshSat Mission and Use Policy](https://meshsat.net/policy/).
+
 ## License
 
 Copyright 2026 Elli and Kyriakos. [GNU General Public License v3.0](LICENSE).
