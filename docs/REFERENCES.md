@@ -181,21 +181,20 @@ Bench, 24 October 2026, 00:45 to 01:03 CEST (MESHSAT-1657 and MESHSAT-1507 comme
 
 ### Panel button on the T-Beam Supreme (compact v2, GPIO38)
 
-The CE technical file's panel button (section 4.1): one leg to GPIO38 (PN1 pin 8), the other to GND (PN1 pin 3); the firmware turns on GPIO38's internal pull-up, so pressed reads low. meshsat-firmware arms the satellite with it in the `meshsat-tbeam-s3-rockblock9704` build (MESHSAT-1667, logic in `src/meshsat/SatelliteArming.h`, host test in `test/meshsat_host/`).
+The CE technical file's panel button (section 4.1): one leg to GPIO38 (PN1 pin 8), the other to GND (PN1 pin 3); the firmware turns on GPIO38's internal pull-up, so pressed reads low. meshsat-firmware makes it the satellite beacon's switch in the `meshsat-tbeam-s3-rockblock9704` build (MESHSAT-1667, MESHSAT-1772; logic in `src/meshsat/SatelliteArming.h`, host test in `test/meshsat_host/`). **It never powers the modem down** (owner, 6 Nov 2026, MESHSAT-1809: "modem NEVER stays off"): the 9704 runs whatever the switch says, and only a low cell stops it. Until meshsat-firmware `6ed946f34` a switch pulled out cut the 9704's supply (the CE file's R5, safe to wear), so no phone could send through the node; that rule is gone and the CE file owes a revision row. The code still says "armed" for the beacon being on.
 
 | Switch | Fitted on | What it does |
 |---|---|---|
-| RUNCCI-YUN DS-425A, 12 mm, self-latching, not sealed | the two prototypes (owner's buttons of 24 Oct 2026) | pushed in: armed; out: disarmed |
-| 12 mm IP67 momentary | the sealed unit (CE file BOM) | a press arms, the next press disarms |
+| RUNCCI-YUN DS-425A, 12 mm, self-latching, not sealed | the two prototypes (owner's buttons of 24 Oct 2026) | pushed in: beacon on; out: beacon off |
+| 12 mm IP67 momentary | the sealed unit (CE file BOM) | a press turns the beacon on, the next press off |
 
 The prototypes carry a latching switch because it was on hand and fits the 12 mm hole; it is not sealed, so it stays off a unit that must be IP67. No firmware setting tells the two apart:
 
-- Nothing happens until the first press a unit has ever seen (kept in NVS, `meshsat/btnSeen`). A unit with no button wired, or one never pressed, runs the modem as before the button (MESHSAT-1657). From that first press on, the modem runs only while armed, and every reset starts disarmed.
-- A press edge debounced for 50 ms arms. A pin held down 10 s or more is a latching switch, kept in NVS (`meshsat/btnKind`); from then on its release disarms. Until then a press toggles, which is what a momentary switch does. A latching switch that is pushed in and out again within 10 s on its very first use is taken for a momentary one until it is next held in; the timeouts below bound that.
-- Arming happens only on a press edge, never on a level: a latching switch left in after a timeout, a low cell or a reset arms again only once it has been released and pushed in.
-- While armed, 15 minutes without satellite traffic (a JSPR `messageOriginate` or `messageTerminate` line) and 30 minutes after arming disarm by themselves (CE file section 2, Shutdown pending). Without USB, a cell under the supply's on-threshold (3.75 V) refuses arming, and a cell low enough to stop the modem disarms it, so recovery never re-arms (R13).
-- Disarming runs Ground Control's stop sequence (UART closed, I_EN low, held low until I_BTD reads low); a disarm during a start waits for I_BTD high first. Every edge and event is in the log and on the screen ("Satellite beacon on", "Beacon off: 15 min idle" and so on; the home screen's big line says "SAT BEACON ON" or "SAT BEACON OFF").
-- Not in this build: arming from the app.
+- Nothing happens until the first press a unit has ever seen (kept in NVS, `meshsat/btnSeen`); every reset starts with the beacon off. The modem runs the same with or without a switch.
+- A press edge debounced for 50 ms turns the beacon on. A pin held down 10 s or more is a latching switch, kept in NVS (`meshsat/btnKind`); from then on its release turns it off. Until then a press toggles, which is what a momentary switch does. A latching switch that is pushed in and out again within 10 s on its very first use is taken for a momentary one until it is next held in; the timeouts below bound that.
+- The beacon goes on only on a press edge, never on a level: a latching switch left in after a timeout, a low cell or a reset turns it on again only once it has been released and pushed in.
+- While on, 15 minutes without satellite traffic (a JSPR `messageOriginate` or `messageTerminate` line) and 30 minutes after the switch-on turn the beacon off by themselves. Without USB, a cell under the supply's on-threshold (3.75 V) refuses the beacon, and a cell low enough to stop the modem turns it off, so recovery never turns it back on (R13).
+- Only the low-cell stop runs Ground Control's stop sequence (UART closed, I_EN low, held low until I_BTD reads low; a stop during a start waits for I_BTD high first); the switch never does. Every edge and event is in the log and on the screen ("Satellite beacon on", "Beacon off: 15 min idle" and so on; the home screen's big line says "SAT BEACON ON" or "SAT BEACON OFF").
 
 #### Charging temperature (owner, 2 Nov 2026)
 
@@ -209,7 +208,7 @@ The T-Beam S3 Core has no thermistor on its cell: LILYGO left the AXP2101's batt
 
 #### The satellite beacon (owner, 2 Nov 2026)
 
-While the satellite is armed the node is a beacon (`src/meshsat/SatBeacon.h`, host test `test/meshsat_host/sat_beacon_test.cpp`). It is never called SOS: nobody staffs a rescue desk behind it, and the message goes to a person the owner of the unit chose.
+While the switch is on the node is a beacon (`src/meshsat/SatBeacon.h`, host test `test/meshsat_host/sat_beacon_test.cpp`). It is never called SOS: nobody staffs a rescue desk behind it, and the message goes to a person the owner of the unit chose.
 
 | When | Message over satellite |
 |---|---|
@@ -220,7 +219,7 @@ While the satellite is armed the node is a beacon (`src/meshsat/SatBeacon.h`, ho
 
 - The position is the last fix the node has seen since it started, with its age; Meshtastic zeroes its own position when the GPS loses lock, so the node keeps the last one itself. A fixed position set by hand says `position set by hand`. Cloudloop also hands the Hub the modem's own rough position with every message.
 - The Hub's "@" lane (meshsat-hub `docs/bridge-hub-protocol.md`, "The @ lane") sends the text after `@beacon` by SMS to the tenant's contact named `beacon` (spaces and case ignored; its primary address must be an SMS number), from the tenant's own SMS account, as `<device label>: <text>`. No number is in the firmware; the contact is changed on the Hub's Contacts page. A tenant without that contact gets nothing sent and the node no notice.
-- After the switch goes off the modem stays up for the last message until the modem reports it settled, 3 minutes at most, then shuts down as above. Switched off before any beacon message reached the modem, nothing is sent at all (a flick of the switch is no alarm). A cell low enough to stop the modem ends the beacon with nothing more sent.
+- After the switch goes off the node keeps the modem for the last message until the modem reports it settled, 3 minutes at most; the modem stays on after that, and a last message not out by then stays queued. Switched off before any beacon message reached the modem, nothing is sent at all (a flick of the switch is no alarm). A cell low enough to stop the modem ends the beacon with nothing more sent.
 - A beacon message goes before a phone: a phone holding the modem lends it to the node once it has written nothing for 3 s, and gets it back once the message is in the modem.
 - With the 30 minute limit one switch-on sends at most four messages (on, 10 min, 20 min, off), one satellite credit each.
 - The blue LED (the PMU's charge LED) says one thing in the 9704 build: a short blip every 3 s while the beacon is on, dark otherwise, whoever holds the modem; the LED switch in the apps still turns it off.
